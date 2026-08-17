@@ -1,0 +1,3342 @@
+if not LPH_OBFUSCATED then
+    LPH_JIT = function(...) return ... end
+    LPH_JIT_MAX = function(...) return ... end
+    LPH_NO_VIRTUALIZE = function(...) return ... end
+    LPH_NO_UPVALUES = function(f) return(function(...) return f(...) end) end
+    LPH_ENCSTR = function(...) return ... end
+    LPH_ENCNUM = function(...) return ... end
+    LPH_CRASH = function() while true do end end
+end
+
+if not getgenv().expiration then 
+    getgenv().expiration = 9999999999
+end
+
+--updates server pos faster?
+setfflag("S2PhysicsSenderRate", "250")
+
+getgenv().debug = false
+
+if allowprints == nil then
+	getgenv().allowprints = true
+end
+
+local function checkprint(...)
+	if allowprints then
+		print(...)
+	end
+end
+
+if loaded then
+	checkprint("already loaded")
+	return
+end
+
+-- localization
+local math = math
+local random = math.random
+local round = math.round
+local rad = math.rad
+local tan = math.tan
+local max = math.max
+
+local pairs = pairs
+
+local function gs(a)
+    return game:GetService(a)
+end
+
+local workspace, userinputservice, players, replicatedstorage, runservice, camera, lighting = gs('Workspace'), gs('UserInputService'), gs('Players'), gs('ReplicatedStorage'), gs('RunService'), workspace.CurrentCamera, gs('Lighting')
+local drawingnew, newVector2, newVector3, fromrgb, newinstance = Drawing.new, Vector2.new, Vector3.new, Color3.fromRGB, Instance.new
+local localplayer = players.LocalPlayer
+local screencenter = newVector2(camera.ViewportSize.X / 2, camera.ViewportSize.Y / 2)
+
+local dysenc = {}
+local animation = newinstance("Animation")
+animation.AnimationId = "http://www.roblox.com/asset/?id=14123781004"
+local danceTrack
+
+local gamevars = {}
+LPH_NO_VIRTUALIZE(function()
+	for i, v in next, getgc(true) do 
+		if type(v) == "table" then
+			-- just incase it moves :(
+			if rawget(v, "CreateBullet") then
+				gamevars.Bullet = v
+				if debug then
+					checkprint("got bullet")
+				end
+			end
+			if rawget(v, "updateClient") then
+				gamevars.FPS = v
+				if debug then
+					checkprint("got client")
+				end
+			end
+		end
+	end
+end)()
+
+local localchar = localplayer.Character
+local localroot
+local localhuman
+
+local rayparams = RaycastParams.new()
+rayparams.FilterType = Enum.RaycastFilterType.Blacklist
+rayparams.FilterDescendantsInstances = {camera, localchar}
+
+-- Handle character respawn
+localplayer.CharacterAdded:Connect(function(newchar)
+	checkprint("Respawned!")
+    localchar = newchar
+	localroot = newchar:WaitForChild("HumanoidRootPart")
+    localhuman = newchar:WaitForChild("Humanoid")
+	if library.flags.undergroundbind then
+		library.flags.undergroundbind = false
+	end
+end)
+
+-- This dont work but the vision is to have it show hours remaining on watermark
+-- if getgenv().expiration == 8640000000000000 then
+-- 	name = "rathack"
+-- else
+-- 	name = "rathack | " .. (getgenv().expiration - os.time() ) / 3600
+-- end
+
+checkprint("identified:",getexecutorname() or identifyexecutor())
+
+local library = nil
+
+local Clock = os.clock()
+LPH_NO_VIRTUALIZE(function()
+	library = loadstring(game:HttpGet("https://raw.githubusercontent.com/gayscallop/reupload/refs/heads/main/soc2k.lua"))({
+    	cheatname = "rathack", -- watermark text
+    	gamename = "projectdelta", -- watermark text
+	})
+end)()
+
+if not library then 
+	checkprint("man what the fuck you do to my library")
+	return 
+end
+
+library:init()
+
+local Window  = library.NewWindow({
+    title = "rathack", -- Mainwindow Text
+    size = UDim2.new(0, 600, 0.6, 100)
+})
+
+local main = Window:AddTab("  main  ")
+local visual = Window:AddTab("  visual  ")
+local localvisual = Window:AddTab("  local visual  ")
+local misc = Window:AddTab("  misc  ")
+
+local SettingsTab = library:CreateSettingsTab(Window)
+
+local aimsettings = main:AddSection("silent aim", 1)
+local targettingsettings = main:AddSection("targetting", 1)
+local aimvisuals = main:AddSection("aim visuals", 1)
+local modsettings = main:AddSection("mods", 2)
+local otheraimsettings = main:AddSection("other aim", 2)
+
+local visualsettings = visual:AddSection("player esp", 1)
+local visualaisettings = visual:AddSection("bot esp", 2)
+local visualothersettings = visual:AddSection("other esp", 1)
+local visualchangersettings = visual:AddSection("visual changers", 2)
+local visualdatasettings = visual:AddSection("esp data settings", 2)
+
+local visualitemsettings = localvisual:AddSection("item changers", 1)
+local visuallocalitemsettings = localvisual:AddSection("local item esp", 1)
+local visuallocalarmsettings = localvisual:AddSection("local arm esp", 2)
+
+local miscplayersettings = misc:AddSection("player mods", 1)
+local miscsettings = misc:AddSection("misc features", 2)
+-- fix the fucking categories being inside of eachother??
+task.spawn(function()
+	task.wait(0.5)
+	main:Select()
+end)
+
+-- highest to lowest
+local characterparts = { 
+	'HeadTopHitBox', 
+	'Head', 
+	'FaceHitBox', 
+
+	'UpperTorso', 
+	'LowerTorso' , 
+
+	"HumanoidRootPart", 
+
+	"RightUpperArm", 
+	"LeftUpperArm", 
+
+	"RightLowerArm", 
+	"LeftLowerArm", 
+
+	"RightUpperLeg", 
+	"LeftUpperLeg", 
+
+	"RightLowerLeg", 
+	"LeftLowerLeg"
+}
+
+
+
+aimsettings:AddToggle({
+    text = "enable",
+    state = false,
+    tooltip = "beam the opps",
+    flag = "silentaim",
+    risky = true
+})
+aimsettings:AddToggle({
+    text = "target ai",
+    state = false,
+    flag = "targetai"
+})
+aimsettings:AddToggle({
+    text = "prediction",
+    state = false,
+    tooltip = "predicts player movement",
+    flag = "prediction"
+})
+aimsettings:AddToggle({
+    text = "vischeck",
+    state = false,
+    tooltip = "checks visibility before targetting, kinda laggy imo",
+    flag = "vischeck"
+})
+aimsettings:AddToggle({
+    text = "on-shot scan",
+    state = false,
+    tooltip = "if you shoot an the part isnt visible it hits the visible part",
+    flag = "onshotscan"
+})
+aimsettings:AddToggle({
+    text = "random bone",
+    state = false,
+    tooltip = "completely random bone to shoot at when using silent",
+    flag = "randombone"
+})
+aimsettings:AddSlider({
+    enabled = true,
+    text = "player aim chance",
+    flag = "playeraimchance",
+	tooltip = "aimchance for players",
+    dragging = true,
+    focused = false,
+    min = 0,
+    max = 100,
+    increment = 1
+})
+aimsettings:AddSlider({
+    enabled = true,
+    text = "ai aim chance",
+    flag = "aiaimchance",
+	tooltip = "aimchance ai",
+    dragging = true,
+    focused = false,
+    min = 0,
+    max = 100,
+    increment = 1
+})
+aimsettings:AddList({
+    enabled = true,
+    text = "bone", 
+    selected = "Head",
+	flag = "aimbone",
+    multi = false,
+    values = characterparts
+})
+
+
+
+targettingsettings:AddList({
+    enabled = true,
+    text = "sort by", 
+    selected = "distance",
+	flag = "sortby",
+    multi = false,
+    values = {"distance", "center", "either"}
+})
+targettingsettings:AddSlider({
+    enabled = true,
+    text = "aim radius",
+    flag = "aimradius",
+    dragging = true,
+    focused = false,
+    min = 0,
+    max = screencenter.X+(screencenter.X/4),
+    increment = 1
+})
+targettingsettings:AddSlider({
+    enabled = true,
+    text = "max distance",
+    flag = "aimdistance",
+    dragging = true,
+    focused = false,
+    min = 0,
+    max = 1500,
+    increment = 1
+})
+
+
+
+modsettings:AddToggle({
+    text = "instant hit",
+    flag = "instanthit"
+})
+modsettings:AddList({
+    enabled = true,
+    text = "instant method", 
+    selected = "raycast",
+	flag = "instantmethod",
+    multi = false,
+    values = {"raycast", "invoke"}
+})
+modsettings:AddToggle({
+    text = "instant lean",
+    flag = "instantlean"
+})
+modsettings:AddToggle({
+    text = "instant aim",
+    flag = "instantaim"
+})
+modsettings:AddToggle({
+    text = "instant equip",
+    flag = "instantequip"
+})
+modsettings:AddToggle({
+    text = "instant reload",
+    flag = "instantreload"
+})
+modsettings:AddToggle({
+    text = "ignore water",
+    flag = "ignorewater",
+	tooltip = "you can legit just make the bullets ignore water crazy game"
+})
+modsettings:AddToggle({
+    text = "no recoil",
+    flag = "norecoil"
+})
+modsettings:AddToggle({
+    text = "no spread",
+    flag = "nospread"
+})
+modsettings:AddToggle({
+    text = "no drop",
+    flag = "nodrop"
+})
+modsettings:AddToggle({
+    text = "no sway",
+    flag = "nosway"
+})
+modsettings:AddToggle({
+    text = "no bobbing",
+    flag = "nobobbing"
+})
+modsettings:AddToggle({
+    text = "no obstructions",
+    flag = "noobstructions"
+})
+modsettings:AddToggle({
+    text = "all firemodes",
+    flag = "allfiremode"
+})
+modsettings:AddToggle({
+    text = "fire rate changer",
+    flag = "fireratechanger"
+})
+modsettings:AddSlider({
+    enabled = true,
+    text = "fire rate delay",
+    flag = "fireratedelay",
+    dragging = true,
+    focused = false,
+    min = 0,
+    max = 1,
+    increment = 0.01
+})
+modsettings:AddSlider({
+    enabled = true,
+    text = "shot amount",
+    flag = "shotamount",
+    dragging = true,
+    focused = false,
+    min = 1,
+    max = 30,
+    increment = 1
+})
+
+
+
+otheraimsettings:AddToggle({
+    text = "auto shoot",
+    flag = "autoshoot"
+}):AddBind({
+    enabled = true,
+    text = "auto shoot",
+    mode = "toggle",
+    bind = "None",
+    flag = "autoshootbind",
+    state = false,
+    nomouse = false,
+    risky = false
+})
+otheraimsettings:AddSlider({
+    enabled = true,
+    text = "autoshoot max distance",
+    flag = "autoshootmaxdistance",
+    dragging = true,
+    focused = false,
+    min = 0,
+    max = 1500,
+    increment = 1
+})
+otheraimsettings:AddToggle({
+    text = "upangle resolver",
+    flag = "upangleresolver"
+}):AddBind({
+    enabled = true,
+    text = "upangle resolver",
+    mode = "toggle",
+    bind = "None",
+    flag = "upangleresolverbind",
+    state = false,
+    nomouse = false,
+    risky = false
+})
+otheraimsettings:AddSlider({
+    enabled = true,
+    text = "upangle amount",
+    flag = "upangleresolveramount",
+    dragging = true,
+    focused = false,
+    min = -2,
+    max = 2,
+    increment = 0.01
+})
+otheraimsettings:AddToggle({
+    text = "manipulation",
+    flag = "manipulation"
+}):AddBind({
+    enabled = true,
+    text = "mani pulation",
+    mode = "toggle",
+    bind = "None",
+    flag = "manipulationbind",
+    state = false,
+    nomouse = false,
+    risky = false
+})
+otheraimsettings:AddSlider({
+    enabled = true,
+    text = "manipulation amount",
+    flag = "manipulationamount",
+    dragging = true,
+    focused = false,
+    min = 0.0,
+    max = 30.0,
+    increment = 0.1
+})
+otheraimsettings:AddSlider({
+    enabled = true,
+    text = "manipulation return delay",
+    flag = "manipulationreturndelay",
+    dragging = true,
+    focused = false,
+    min = 0,
+    max = 1,
+    increment = 0.01
+})
+otheraimsettings:AddToggle({
+    text = "resolver",
+    flag = "resolver"
+}):AddBind({
+    enabled = true,
+    text = "resolver",
+    mode = "toggle",
+    bind = "None",
+    flag = "resolverbind",
+    state = false,
+    nomouse = false,
+    risky = false
+})
+otheraimsettings:AddSlider({
+    enabled = true,
+    text = "resolver amount",
+    flag = "resolveramount",
+    dragging = true,
+    focused = false,
+    min = 0.0,
+    max = 30.0,
+    increment = 0.1
+})
+otheraimsettings:AddSlider({
+    enabled = true,
+    text = "resolver return delay",
+    flag = "resolverreturndelay",
+    dragging = true,
+    focused = false,
+    min = 0,
+    max = 1,
+    increment = 0.01
+})
+
+
+
+aimvisuals:AddToggle({
+    text = "manipulation indicator",
+    flag = "manipindicator"
+}):AddColor({
+    enabled = true,
+    text = "indicator color",
+    color = fromrgb(255, 255, 255),
+    flag = "manipindicatorcolor",
+    trans = 0
+})
+aimvisuals:AddToggle({
+    text = "resolver indicator",
+    flag = "resolveindicator"
+}):AddColor({
+    enabled = true,
+    text = "indicator color",
+    color = fromrgb(255, 255, 255),
+    flag = "resolveindicatorcolor",
+    trans = 0
+})
+aimvisuals:AddToggle({
+    text = "bullet tracers",
+    flag = "bullettracer"
+}):AddColor({
+    enabled = true,
+    text = "tracer color",
+    color = fromrgb(255, 255, 255),
+    flag = "bullettracercolor",
+    trans = 0
+})
+aimvisuals:AddToggle({
+    text = "on hit tracer",
+    flag = "onhittracer",
+	tooltip = "this goes off a set time variable so could tweak using instanthit"
+}):AddColor({
+    enabled = true,
+    text = "on hit tracer color",
+    color = fromrgb(255, 255, 255),
+    flag = "onhittracercolor",
+    trans = 0
+})
+aimvisuals:AddSlider({
+    enabled = true,
+    text = "tracer remove rate",
+    flag = "tracerrate",
+    dragging = true,
+    focused = false,
+    min = 0,
+    max = 0.5,
+    increment = 0.01
+})
+aimvisuals:AddSlider({
+    enabled = true,
+    text = "tracer width",
+    flag = "tracerwidth",
+    dragging = true,
+    focused = false,
+    min = 0,
+    max = 3,
+    increment = 0.01
+})
+aimvisuals:AddToggle({
+    text = "aim dots",
+    flag = "aimdot",
+	tooltip = "things fuckin tiny but its nice at long ranges"
+}):AddColor({
+    enabled = true,
+    text = "dot color",
+    color = fromrgb(255, 255, 255),
+    flag = "aimdotcolor",
+    trans = 0
+})
+aimvisuals:AddToggle({
+    text = "aim line",
+    flag = "aimline"
+}):AddColor({
+    enabled = true,
+    text = "line color",
+    color = fromrgb(255, 255, 255),
+    flag = "aimlinecolor",
+    trans = 0
+})
+aimvisuals:AddToggle({
+    text = "aim fov",
+    flag = "aimfov"
+}):AddColor({
+    enabled = true,
+    text = "aim color",
+    color = fromrgb(255, 255, 255),
+    flag = "aimcolor",
+    trans = 0
+})
+aimvisuals:AddToggle({
+    text = "dynamic fov",
+    flag = "dynamicfov"
+})
+
+
+
+visualsettings:AddToggle({
+    text = "box",
+    state = false,
+    flag = "boxesp"
+}):AddColor({
+    enabled = true,
+    text = "box color",
+    color = fromrgb(255, 255, 255),
+    flag = "boxcolor",
+    trans = 0
+})
+visualsettings:AddToggle({
+    text = "healthbar",
+    state = false,
+    flag = "healthbaresp"
+}):AddColor({
+    enabled = true,
+    text = "healthbar color",
+    color = fromrgb(255, 255, 255),
+    flag = "healthbarcolor",
+    trans = 0
+})
+visualsettings:AddToggle({
+    text = "dynamic healthbar",
+    state = false,
+    flag = "dynamichealthbaresp"
+}):AddColor({
+    enabled = true,
+	tooltip = "fades to this color",
+    text = "bottom color",
+    color = fromrgb(255, 255, 255),
+    flag = "dynamichealthbarcolor",
+    trans = 0
+})
+visualsettings:AddToggle({
+    text = "names",
+    state = false,
+    flag = "nameesp"
+}):AddColor({
+    enabled = true,
+    text = "name color",
+    color = fromrgb(255, 255, 255),
+    flag = "namecolor",
+    trans = 0
+})
+visualsettings:AddToggle({
+    text = "weapon",
+    state = false,
+    flag = "weaponesp"
+}):AddColor({
+    enabled = true,
+    text = "weapon color",
+    color = fromrgb(255, 255, 255),
+    flag = "weaponcolor",
+    trans = 0
+})
+visualsettings:AddToggle({
+    text = "kda",
+    state = false,
+    flag = "kdaesp"
+}):AddColor({
+    enabled = true,
+    text = "kda color",
+    color = fromrgb(255, 255, 255),
+    flag = "kdacolor",
+    trans = 0
+})
+visualsettings:AddToggle({
+    text = "distance",
+    state = false,
+    flag = "distanceesp"
+}):AddColor({
+    enabled = true,
+    text = "distance color",
+    color = fromrgb(255, 255, 255),
+    flag = "distancecolor",
+    trans = 0
+})
+visualsettings:AddToggle({
+    text = "health",
+    state = false,
+    flag = "healthesp"
+}):AddColor({
+    enabled = true,
+    text = "health color",
+    color = fromrgb(255, 255, 255),
+    flag = "healthcolor",
+    trans = 0
+})
+visualsettings:AddToggle({
+    text = "fill chams",
+    state = false,
+    flag = "fillcham"
+}):AddColor({
+    enabled = true,
+    text = "fill color",
+    color = fromrgb(255, 255, 255),
+    flag = "fillchamcolor",
+    trans = 0
+})
+visualsettings:AddSlider({
+    enabled = true,
+    text = "fill transparency",
+    flag = "filltransparency",
+    suffix = "",
+    dragging = true,
+    focused = false,
+    min = 0,
+    max = 1,
+    increment = 0.01
+})
+visualsettings:AddToggle({
+    text = "outline chams",
+    state = false,
+    flag = "outlinecham"
+}):AddColor({
+    enabled = true,
+    text = "outline color",
+    color = fromrgb(255, 255, 255),
+    flag = "outlinechamcolor",
+    trans = 0
+})
+visualsettings:AddSlider({
+    enabled = true,
+    text = "outline transparency",
+    flag = "outlinetransparency",
+    suffix = "",
+    dragging = true,
+    focused = false,
+    min = 0,
+    max = 1,
+    increment = 0.01
+})
+visualsettings:AddToggle({
+    text = "occluded chams",
+    state = false,
+    flag = "occludedcham"
+})
+
+
+visualaisettings:AddToggle({
+    text = "box",
+    state = false,
+    flag = "aiboxesp"
+}):AddColor({
+    enabled = true,
+    text = "box color",
+    color = fromrgb(255, 255, 255),
+    flag = "aiboxcolor",
+    trans = 0
+})
+visualaisettings:AddToggle({
+    text = "healthbar",
+    state = false,
+    flag = "aihealthbaresp"
+}):AddColor({
+    enabled = true,
+    text = "healthbar color",
+    color = fromrgb(255, 255, 255),
+    flag = "aihealthbarcolor",
+    trans = 0
+})
+visualaisettings:AddToggle({
+    text = "dynamic healthbar",
+    state = false,
+    flag = "aidynamichealthbaresp"
+}):AddColor({
+    enabled = true,
+    text = "top color",
+    color = fromrgb(255, 255, 255),
+    flag = "aidynamichealthbarcolor",
+    trans = 0
+})
+visualaisettings:AddToggle({
+    text = "names",
+    state = false,
+    flag = "ainameesp"
+}):AddColor({
+    enabled = true,
+    text = "name color",
+    color = fromrgb(255, 255, 255),
+    flag = "ainamecolor",
+    trans = 0
+})
+visualaisettings:AddToggle({
+    text = "weapon",
+    state = false,
+    flag = "aiweaponesp"
+}):AddColor({
+    enabled = true,
+    text = "weapon color",
+    color = fromrgb(255, 255, 255),
+    flag = "aiweaponcolor",
+    trans = 0
+})
+visualaisettings:AddToggle({
+    text = "distance",
+    state = false,
+    flag = "aidistanceesp"
+}):AddColor({
+    enabled = true,
+    text = "distance color",
+    color = fromrgb(255, 255, 255),
+    flag = "aidistancecolor",
+    trans = 0
+})
+visualaisettings:AddToggle({
+    text = "health",
+    state = false,
+    flag = "aihealthesp"
+}):AddColor({
+    enabled = true,
+    text = "health color",
+    color = fromrgb(255, 255, 255),
+    flag = "aihealthcolor",
+    trans = 0
+})
+visualaisettings:AddToggle({
+    text = "fill chams",
+    state = false,
+    flag = "aifillcham"
+}):AddColor({
+    enabled = true,
+    text = "fill color",
+    color = fromrgb(255, 255, 255),
+    flag = "aifillchamcolor",
+    trans = 0
+})
+visualaisettings:AddSlider({
+    enabled = true,
+    text = "fill transparency",
+    flag = "aifilltransparency",
+    suffix = "",
+    dragging = true,
+    focused = false,
+    min = 0,
+    max = 1,
+    increment = 0.01
+})
+visualaisettings:AddToggle({
+    text = "outline chams",
+    state = false,
+    flag = "aioutlinecham"
+}):AddColor({
+    enabled = true,
+    text = "outline color",
+    color = fromrgb(255, 255, 255),
+    flag = "aioutlinechamcolor",
+    trans = 0
+})
+visualaisettings:AddSlider({
+    enabled = true,
+    text = "outline transparency",
+    flag = "aioutlinetransparency",
+    suffix = "",
+    dragging = true,
+    focused = false,
+    min = 0,
+    max = 1,
+    increment = 0.01
+})
+visualaisettings:AddToggle({
+    text = "occluded chams",
+    state = false,
+    flag = "aioccludedcham"
+})
+
+
+
+visualothersettings:AddToggle({
+    text = "extract esp",
+    state = false,
+    flag = "extractesp"
+}):AddColor({
+    enabled = true,
+    text = "extract color",
+    color = fromrgb(255, 255, 255),
+    flag = "extractcolor",
+    trans = 0
+})
+visualothersettings:AddToggle({
+    text = "extract distance",
+    state = false,
+    flag = "extractdistance"
+})
+visualothersettings:AddSlider({
+    enabled = true,
+    text = "extract max distance",
+    flag = "extractmaxdistance",
+    suffix = "",
+    dragging = true,
+    focused = false,
+    min = 1,
+    max = 2000,
+    increment = 1
+})
+visualothersettings:AddToggle({
+    text = "quest item esp",
+    state = false,
+    flag = "questesp"
+}):AddColor({
+    enabled = true,
+    text = "quest item color",
+    color = fromrgb(255, 255, 255),
+    flag = "questcolor",
+    trans = 0
+})
+visualothersettings:AddToggle({
+    text = "quest item distance",
+    state = false,
+    flag = "questdistance"
+})
+visualothersettings:AddSlider({
+    enabled = true,
+    text = "quest item max distance",
+    flag = "questmaxdistance",
+    suffix = "",
+    dragging = true,
+    focused = false,
+    min = 1,
+    max = 2000,
+    increment = 1
+})
+visualothersettings:AddToggle({
+    text = "corpse esp",
+    state = false,
+    flag = "corpseesp"
+}):AddColor({
+    enabled = true,
+    text = "corpse color",
+    color = fromrgb(255, 255, 255),
+    flag = "corpsecolor",
+    trans = 0
+})
+visualothersettings:AddToggle({
+    text = "corpse distance",
+    state = false,
+    flag = "corpsedistance"
+})
+visualothersettings:AddSlider({
+    enabled = true,
+    text = "corpse max distance",
+    flag = "corpsemaxdistance",
+    suffix = "",
+    dragging = true,
+    focused = false,
+    min = 1,
+    max = 2000,
+    increment = 1
+})
+
+
+
+visualchangersettings:AddToggle({
+    text = "time changer",
+    state = false,
+    flag = "timechanger"
+}):AddSlider({
+    text = "time of day",
+    min = 0,
+    max = 24,
+    value = 12,
+    increment = 0.1,
+    flag = "timevalue"
+})
+visualchangersettings:AddToggle({
+    text = "custom ambient",
+    state = false,
+    flag = "customambient"
+}):AddColor({
+    enabled = true,
+    text = "ambient color",
+    color = fromrgb(0, 0, 0),
+    flag = "ambientcolor",
+    trans = 0
+})
+visualchangersettings:AddToggle({
+    text = "remove visor",
+    state = false,
+    flag = "removevisor",
+	callback = function(val)
+		localplayer.PlayerGui.MainGui.MainFrame.ScreenEffects.Visor.Visible = not val
+	end
+})
+-- density before: 0.4
+local oldDensity = lighting.Atmosphere.Density
+visualchangersettings:AddToggle({
+    text = "remove fog",
+    state = false,
+    flag = "removefog"
+})
+visualchangersettings:AddToggle({
+    text = "remove bloom",
+    state = false,
+    flag = "removebloom",
+	callback = function(state)
+		if lighting:FindFirstChild("Bloom") then
+			lighting.Bloom.Enabled = not state
+		end
+	end
+})
+visualchangersettings:AddToggle({
+    text = "remove grass",
+    state = false,
+    flag = "removegrass",
+    callback = function(state)
+        sethiddenproperty(workspace.Terrain, "Decoration", not state)
+    end
+})
+visualchangersettings:AddToggle({
+    text = "remove clouds",
+    state = false,
+    flag = "removeclouds",
+    callback = function(state)
+        if workspace.Terrain:FindFirstChild("Clouds") then
+            workspace.Terrain:FindFirstChild("Clouds").Enabled = not Value
+        end
+    end
+})
+
+
+visualitemsettings:AddToggle({
+    text = "model offset",
+    flag = "modeloffset"
+})
+visualitemsettings:AddSlider({
+    enabled = true,
+    text = "model offset x",
+    flag = "modeloffsetx",
+    dragging = true,
+    focused = false,
+    min = -10,
+    max = 10,
+    increment = 0.1
+})
+visualitemsettings:AddSlider({
+    enabled = true,
+    text = "model offset y",
+    flag = "modeloffsety",
+    dragging = true,
+    focused = false,
+    min = -10,
+    max = 10,
+    increment = 0.1
+})
+visualitemsettings:AddSlider({
+    enabled = true,
+    text = "model offset z",
+    flag = "modeloffsetz",
+    dragging = true,
+    focused = false,
+    min = -10,
+    max = 10,
+    increment = 0.1
+})
+
+
+
+visuallocalitemsettings:AddToggle({
+    text = "modify weapon visual",
+    state = false,
+    flag = "modifyweaponvisual"
+})
+visuallocalitemsettings:AddToggle({
+    text = "change item transparency",
+    state = false,
+    flag = "changeitemtransparency"
+}):AddSlider({
+    text = "item transparency",
+    min = 0,
+    max = 1,
+    increment = 0.01,
+    flag = "itemtransparency"
+})
+visuallocalitemsettings:AddToggle({
+    text = "change item color",
+    state = false,
+    flag = "changeitemcolor"
+}):AddColor({
+    enabled = true,
+    text = "item color",
+    color = fromrgb(255, 255, 255),
+    flag = "itemcolor",
+    trans = 0
+})
+visuallocalitemsettings:AddToggle({
+    text = "change item material",
+    state = false,
+    flag = "changeitemmaterial"
+}):AddList({
+    enabled = true,
+    text = "item material", 
+    selected = "ForceField",
+	flag = "itemmaterial",
+    multi = false,
+    values = {"ForceField", "Neon", "Plastic", "Glass"}
+})
+
+
+
+visuallocalarmsettings:AddToggle({
+    text = "modify arm visual",
+    state = false,
+    flag = "modifyarmvisual"
+})
+visuallocalarmsettings:AddToggle({
+    text = "change arm transparency",
+    state = false,
+    flag = "changearmtransparency"
+}):AddSlider({
+    text = "arm transparency",
+    min = 0,
+    max = 1,
+    increment = 0.01,
+    flag = "armtransparency"
+})
+visuallocalarmsettings:AddToggle({
+    text = "change arm color",
+    state = false,
+    flag = "changearmcolor"
+}):AddColor({
+    enabled = true,
+    text = "arm color",
+    color = fromrgb(255, 255, 255),
+    flag = "armcolor",
+    trans = 0
+})
+visuallocalarmsettings:AddToggle({
+    text = "change arm material",
+    state = false,
+    flag = "changearmmaterial"
+}):AddList({
+    enabled = true,
+    text = "arm material", 
+    selected = "ForceField",
+	flag = "armmaterial",
+    multi = false,
+    values = {"ForceField", "Neon", "Plastic", "Glass"}
+})
+
+
+
+visualdatasettings:AddSlider({
+    enabled = true,
+    text = "text size",
+    flag = "textsize",
+    dragging = true,
+    focused = false,
+    min = 0,
+    max = 30,
+	value = 14,
+    increment = 1
+})
+visualdatasettings:AddSlider({
+    enabled = true,
+    text = "min text size",
+    flag = "mintextsize",
+    dragging = true,
+    focused = false,
+    min = 0,
+    max = 30,
+	value = 10,
+    increment = 1
+})
+
+while not(localchar or localroot or localhuman or game:IsLoaded()) do
+	task.wait(0.2)
+end
+
+localroot = localchar:FindFirstChild("HumanoidRootPart")
+localhuman = localchar:FindFirstChild("Humanoid")
+
+miscplayersettings:AddToggle({
+    text = "no fall damage",
+    state = false,
+    flag = "nofall"
+})
+miscplayersettings:AddToggle({
+    text = "anti drown",
+    state = false,
+    flag = "antidrown"
+})
+miscplayersettings:AddToggle({
+    text = "remove water around",
+    state = false,
+    flag = "removewateraround"
+})
+miscplayersettings:AddToggle({
+    text = "third person",
+    state = false,
+    flag = "thirdperson"
+}):AddBind({
+    enabled = true,
+    text = "3rd person bind",
+    mode = "toggle",
+    bind = "None",
+    flag = "thirdpersonbind"
+})
+miscplayersettings:AddSlider({
+    text = "3rd person distance",
+    min = 1,
+    max = 40,
+    value = tpvalue,
+    increment = 0.1,
+    flag = "thirdpersondistance"
+})
+
+-- these require the localchar to actually exist
+local oldWS = localhuman.WalkSpeed
+local oldJP = localhuman.JumpHeight
+local oldHH = localhuman.HipHeight
+local oldGrav = workspace.Gravity
+
+miscplayersettings:AddToggle({
+    text = "jesus",
+    state = false,
+    flag = "jesus",
+	callback = function(bool)
+		for i,v in pairs(workspace:GetChildren()) do
+			if v.Name == "crackheadjesus" then
+            	v:Destroy()
+			end
+        end
+	end
+})
+miscplayersettings:AddToggle({
+    text = "spiderman",
+    state = false,
+    flag = "spiderman"
+}):AddBind({
+    enabled = true,
+    text = "spiderman bind",
+    mode = "toggle",
+    bind = "None",
+    flag = "spidermanbind"
+})
+miscplayersettings:AddSlider({
+    text = "spiderman speed",
+    min = 1,
+    max = 50,
+	increment = 0.1,
+    flag = "spidermanspeed"
+})
+miscplayersettings:AddToggle({
+    text = "speed",
+    state = false,
+    flag = "speed"
+}):AddBind({
+    enabled = true,
+    text = "speed bind",
+    mode = "toggle",
+    bind = "None",
+    flag = "speedbind"
+})
+miscplayersettings:AddSlider({
+    text = "speed changer",
+    min = 1,
+    max = 3,
+	increment = 0.01,
+	tooltip = "straight up just walkspeed = walkspeed + value",
+    flag = "speedchanger"
+})
+miscplayersettings:AddToggle({
+    text = "jump",
+    state = false,
+    flag = "jump"
+}):AddBind({
+    enabled = true,
+    text = "jump bind",
+    mode = "toggle",
+    bind = "None",
+    flag = "jumpbind"
+})
+miscplayersettings:AddSlider({
+    text = "jump changer",
+    min = -oldJP,
+    max = round(oldJP*4),
+	value = 0.0,
+	increment = 0.01,
+    flag = "jumpchanger"
+})
+miscplayersettings:AddToggle({
+    text = "hip height",
+    state = false,
+    flag = "hipheight"
+}):AddBind({
+    enabled = true,
+    text = "hipheight bind",
+    mode = "toggle",
+    bind = "None",
+    flag = "hipheightbind"
+})
+miscplayersettings:AddSlider({
+    text = "hip changer",
+    min = -oldHH,
+    max = oldHH*4,
+	value = 0.0,
+	increment = 0.01,
+    flag = "hipchanger"
+})
+miscplayersettings:AddToggle({
+    text = "gravity",
+    state = false,
+    flag = "gravity"
+}):AddBind({
+    enabled = true,
+    text = "gravity bind",
+    mode = "toggle",
+    bind = "None",
+    flag = "gravitybind"
+})
+miscplayersettings:AddSlider({
+    text = "gravity changer",
+    min = -workspace.Gravity,
+    max = workspace.Gravity*2,
+	value = 0.0,
+    increment = 0.01,
+    flag = "gravitychanger"
+})
+
+
+
+miscsettings:AddSlider({
+    text = "fps cap",
+    min = 1,
+    max = 1000,
+	value = 120,
+    increment = 1,
+    flag = "fpscap",
+	callback = function(val)
+		setfpscap(val)
+	end
+})
+local oldFov = replicatedstorage.Players:FindFirstChild(localplayer.Name).Settings.GameplaySettings:GetAttribute("DefaultFOV")
+miscsettings:AddToggle({
+    text = "zoom",
+    state = false,
+    flag = "zoom"
+}):AddBind({
+    enabled = true,
+    text = "zoom bind",
+    mode = "toggle",
+    bind = "None",
+    flag = "zoombind",
+	callback = function(bool)
+        if library.flags.zoom and bool then
+			oldFov = replicatedstorage.Players:FindFirstChild(localplayer.Name).Settings.GameplaySettings:GetAttribute("DefaultFOV")
+			replicatedstorage.Players:FindFirstChild(localplayer.Name).Settings.GameplaySettings:SetAttribute("DefaultFOV", library.flags.zoomfov)
+        else
+            replicatedstorage.Players:FindFirstChild(localplayer.Name).Settings.GameplaySettings:SetAttribute("DefaultFOV", oldFov)
+        end
+	end
+})
+miscsettings:AddSlider({
+    text = "zoom fov",
+    min = 1,
+    max = 120,
+    increment = 1,
+    flag = "zoomfov"
+})
+miscsettings:AddToggle({
+    text = "hide clothes",
+    state = false,
+    flag = "hideclothes"
+})
+miscsettings:AddButton({
+    text = "remove particles",
+    callback = function()
+		if workspace:FindFirstChild("WeatherEffectArea") then
+			if workspace.NoCollision:FindFirstChild("WeatherEffectArea") then
+        		workspace.NoCollision.WeatherEffectArea:Destroy()
+			end
+		end
+    end
+})
+miscsettings:AddButton({
+	text = "remove mines",
+	callback = function()
+		-- kill
+		for i, v in next, workspace:GetDescendants() do
+    		local name = v.Name
+    		if name == "OutpostLandmines" or name == "OutpostClaymores" or name == "HeliCrashClaymores" or name == "PMN2" or name == "MON50" then
+        		v:Destroy()
+    		end
+		end
+	end
+})
+miscsettings:AddButton({
+	text = "explode mines",
+	callback = function()
+		if not firetouchinterest then checkprint("exec doesnt have firetouchinterest") return end
+		-- kill
+		for i, v in next, workspace:GetDescendants() do
+    		local name = v.Name
+    		if name == "OutpostLandmines" or name == "OutpostClaymores" or name == "HeliCrashClaymores" or name == "PMN2" or name == "MON50" then
+        		local limb = localchar.LeftLowerLeg
+				local trigger = v:FindFirstChild("Trigger")
+        		if trigger then
+            		firetouchinterest(trigger, limb, 0)
+            		firetouchinterest(trigger, limb, 1)
+        		end
+    		end
+		end
+	end
+})
+miscsettings:AddButton({
+	text = "show broker",
+	callback = function()
+		if workspace:FindFirstChild("TheBroker") then
+			workspace.TheBroker:SetAttribute("Hidden", false)
+		end
+	end
+})
+miscsettings:AddButton({
+	text = "green",
+	tooltip = "click it",
+	callback = function()
+		for i, v in next, workspace:GetDescendants() do
+    		local type = v.ClassName
+    		if type == "MeshPart" or type == "Part" then
+        		v.Color = fromrgb(0, 255, 0)
+				if type == "MeshPart" then
+					v.TextureID = ""
+				end
+    		end
+		end
+	end
+})
+
+
+
+-- Movement variables
+local keysDown = {}
+
+local inputStart
+inputStart = userinputservice.InputBegan:Connect(function(input, gameProcessed)
+    if input.KeyCode == Enum.KeyCode.Space or
+       input.KeyCode == Enum.KeyCode.E or
+       input.KeyCode == Enum.KeyCode.Q or
+       input.KeyCode == Enum.KeyCode.W or
+       input.KeyCode == Enum.KeyCode.A or
+       input.KeyCode == Enum.KeyCode.S or
+       input.KeyCode == Enum.KeyCode.D then
+        keysDown[input.KeyCode] = true
+    end
+end)
+
+local inputEnd
+inputEnd = userinputservice.InputEnded:Connect(function(input, gameProcessed)
+    if keysDown[input.KeyCode] ~= nil then
+        keysDown[input.KeyCode] = nil
+    end
+end)
+
+local originalProperties = {}
+
+local serverPositionClone = nil
+local clientPositionClone = nil
+local undergroundPosClone = nil
+local parthb = nil
+
+local function createUndergroundPosClone()
+    if undergroundPosClone then undergroundPosClone:Destroy() end
+    undergroundPosClone = newinstance("Part")
+    undergroundPosClone.Anchored = false
+    undergroundPosClone.CanCollide = false
+    undergroundPosClone.Transparency = 0.5
+    undergroundPosClone.Size = newVector3(2, 2, 1)
+    undergroundPosClone.CFrame = localroot.CFrame
+    undergroundPosClone.Color = fromrgb(0, 255, 0)
+    undergroundPosClone.Parent = workspace
+    undergroundPosClone.Name = "UndergroundPosition"
+
+	return undergroundPosClone
+end
+
+local function removeUndergroundPosClone()
+    if undergroundPosClone then
+        undergroundPosClone:Destroy()
+        undergroundPosClone = nil
+    end
+end
+
+miscplayersettings:AddToggle({
+    text = "blink",
+    state = false,
+    flag = "blink"
+}):AddBind({
+    enabled = true,
+    text = "blink",
+    mode = "toggle",
+    bind = "None",
+    flag = "blinkbind",
+	callback = function(bool)
+        blinkenabled = bool
+        if library.flags.blink then
+            if blinkenabled then
+			    originalProperties.WalkSpeed = localhuman.WalkSpeed
+				originalProperties.JumpPower = localhuman.JumpPower
+				originalProperties.Anchored = localroot.Anchored
+				originalProperties.Position = localroot.Position
+				originalProperties.CFrame = localroot.CFrame
+
+				localhuman.WalkSpeed = 0
+				localhuman.JumpPower = 0
+				localroot.Anchored = true
+
+				if serverPositionClone then serverPositionClone:Destroy() end
+				serverPositionClone = newinstance("Part")
+				serverPositionClone.Anchored = true
+				serverPositionClone.CanCollide = false
+				serverPositionClone.Transparency = 0.5
+				serverPositionClone.Size = newVector3(2, 2, 1)
+				serverPositionClone.CFrame = localroot.CFrame
+				serverPositionClone.Color = fromrgb(255, 0, 0)
+				serverPositionClone.Parent = workspace
+				serverPositionClone.Name = "ServerPosition"
+
+				if clientPositionClone then clientPositionClone:Destroy() end
+				clientPositionClone = newinstance("Part")
+				clientPositionClone.Anchored = false
+				clientPositionClone.CanCollide = false
+				clientPositionClone.Transparency = 0.5
+				clientPositionClone.Size = newVector3(2, 2, 1)
+				clientPositionClone.Color = fromrgb(0, 0, 255)
+				clientPositionClone.Parent = workspace
+				clientPositionClone.Name = "ClientPosition"
+
+				parthb = runservice.Heartbeat:Connect(LPH_NO_VIRTUALIZE(function()
+					task.wait(0.01)
+					clientPositionClone.CFrame = localroot.CFrame
+				end))
+            else
+                if localchar and localhuman and localroot then
+					localhuman.WalkSpeed = originalProperties.WalkSpeed
+					localhuman.JumpPower = originalProperties.JumpPower
+					localroot.Anchored = originalProperties.Anchored
+				end
+
+				if serverPositionClone then
+					serverPositionClone:Destroy()
+					serverPositionClone = nil
+				end
+
+				if parthb then parthb:Disconnect() end
+
+				if clientPositionClone then
+					clientPositionClone:Destroy()
+					clientPositionClone = nil
+				end
+
+                if library.flags.blinkrestoration then
+                    task.spawn(function()
+                        task.wait(library.flags.blinkrestorationdelay)
+                        if originalProperties.CFrame then
+							if localchar and localroot then
+								localroot.CFrame = originalProperties.CFrame
+							end
+						end
+                    end)
+                end
+            end
+        end
+	end
+})
+miscplayersettings:AddToggle({
+    text = "blink restoration",
+    flag = "blinkrestoration"
+})
+miscplayersettings:AddSlider({
+    text = "blink restoration delay",
+    min = 0,
+    max = 3,
+    increment = 0.1,
+    flag = "blinkrestorationdelay"
+})
+miscplayersettings:AddSlider({
+    text = "blink speed",
+    min = 1,
+    max = 50,
+    increment = 0.1,
+    flag = "blinkspeed"
+})
+miscplayersettings:AddToggle({
+    text = "underground",
+    state = false,
+    tooltip = "Toggle underground",
+    flag = "underground"
+}):AddBind({
+    enabled = true,
+    text = "underground",
+    mode = "toggle",
+    bind = "None",
+    flag = "undergroundbind",
+    callback = function(val)
+    	if library.flags.underground and val then
+			if undergroundPosClone then undergroundPosClone:Destroy() end
+			undergroundPosClone = newinstance("Part")
+			undergroundPosClone.Anchored = false
+			undergroundPosClone.CanCollide = false
+			undergroundPosClone.Transparency = 0.5
+			undergroundPosClone.Size = newVector3(2, 2, 1)
+			undergroundPosClone.CFrame = localroot.CFrame
+			undergroundPosClone.Color = fromrgb(0, 255, 0)
+			undergroundPosClone.Parent = workspace
+			undergroundPosClone.Name = "UndergroundPosition"
+        	replicatedstorage.Remotes.UpdateTilt:FireServer(0/0 or 0)
+        	danceTrack = localhuman:LoadAnimation(animation)
+        	danceTrack.Looped = false
+        	danceTrack:Play(.1, 1, 0)
+    	else
+			if undergroundPosClone then
+				undergroundPosClone:Destroy()
+				undergroundPosClone = nil
+			end
+        	if danceTrack then
+            	danceTrack:Stop()
+            	danceTrack:Destroy()
+        	end
+        	replicatedstorage.Remotes.UpdateTilt:FireServer(false and 0/0 or 0)
+    	end
+	end
+})
+miscplayersettings:AddSlider({
+    text = "camera height addition",
+	tooltip = "this only applies while underground",
+    min = -5,
+    max = 5,
+    increment = 0.1,
+    flag = "cameray"
+})
+
+-- draw section
+
+local playerdata = {}
+local otherdata = {}
+local drawings = {}
+local highlights = {}
+local modlist = {}
+
+local targetdata = {}
+
+local bosslist = {}
+
+local bulletdata = {}
+
+local ainames = {
+    "OccupantSoldier",
+    "OccupantSniper",
+    "OccupantSurveyTeam",
+    "HighwayBandit",
+    "WastelandBandit",
+    "Anton",
+    "Dozer",
+    "AntonGuard",
+    "Whisper",
+    "SniperBandit",
+    "ScavKing",
+    "Scav",
+    "UNOSoldier"
+}
+
+local function newDrawing(type, properties)
+	local drawing = drawingnew(type)
+	for i,v in pairs(properties) do
+		drawing[i] = v
+	end
+	table.insert(drawings,drawing)
+	return drawing
+end
+
+local function newHighlight(properties)
+	local highlight = newinstance("Highlight", game.CoreGui)
+	for i,v in pairs(properties) do
+		highlight[i] = v
+	end
+	table.insert(highlights,highlight)
+	return highlight
+end
+
+-- there will be many text drawings so i wanted to do this
+local function newTextDrawing(props)
+	local draw = newDrawing("Text", {
+		Size = props and props.Size or 14, 
+		Visible = props and props.Visible or false, 
+		Outline = props and props.Outline or true,
+		Center = props and props.Center or true,
+		Text = props and props.Text or "nil", 
+		Color = props and props.Color or fromrgb(255,255,255),
+		Position = props and props.Position or newVector2(100,100)
+	})
+	return draw
+end
+
+local function clearInfo()
+	for i,v in pairs(drawings) do
+		if drawings[i] then
+			drawings[i]:Destroy()
+		end
+	end
+	for i,v in pairs(highlights) do
+		if highlights[i] then
+			highlights[i]:Remove()
+		end
+	end
+	for i,v in pairs(playerdata) do
+		if playerdata[i] then
+			playerdata[i] = nil
+		end
+	end
+	for i,v in pairs(otherdata) do
+		if otherdata[i] then
+			otherdata[i] = nil
+		end
+	end
+	checkprint("Unloaded!")
+end
+
+-- one time drawings that we update later
+local fovcircle = newDrawing("Circle", {Filled = false, Radius = 0, Position = screencenter})
+local aimline = newDrawing("Line", {Thickness = 1, From = screencenter})
+local aimdot = newDrawing("Circle", {Filled = true, Radius = 1.5})
+local centerdot = newDrawing("Circle", {Filled = true, Radius = 1.5, Position = screencenter})
+local maniptext = newTextDrawing({Text = "[ Manipulated ]",Position = newVector2(screencenter.X,screencenter.Y+10)})
+local resolvtext = newTextDrawing({Text = "[ Resolved ]",Position = newVector2(screencenter.X,screencenter.Y+10)})
+
+-- end draw setup section
+
+local function isAi(player)
+	for i = 1, #ainames do
+		if player.Name == ainames[i] then
+			return true
+		end
+	end
+	return false
+end
+
+local function isMod(player)
+	if modlist[player.Name] then return true end
+
+	local repinstance = replicatedstorage.Players:FindFirstChild(player.Name)
+	if not repinstance then return false end
+
+	local status = repinstance:FindFirstChild("Status")
+	if not status then return false end
+
+	local function handle(reason)
+        	library:SendNotification(player.Name .. " flagged as mod (" .. reason .. ")", 30)
+		modlist[player.Name] = reason
+		return true
+	end
+
+	if status:FindFirstChild("GameplayVariables") then
+		if status.GameplayVariables:GetAttribute("PremiumLevel") >= 4 then
+			return handle("premlvl >= 4")
+		end
+		if status.GameplayVariables:GetAttribute("Godmode") == true then
+			return handle("godmode")
+		end
+	end
+	if status:FindFirstChild("UAC") then
+		if status.UAC:GetAttribute("A1Detected") == true then
+			return handle("#1")
+		end
+		if status.UAC:GetAttribute("A2Detected") == true then
+			return handle("#2")
+		end
+		if status.UAC:GetAttribute("A3Detected") == true then
+			return handle("#3")
+		end
+	end
+	return false
+end
+
+
+local function addPlayer(player)
+	if playerdata[player] then return end
+
+	local playerchar = player
+	
+	if not isAi(player) then
+		playerchar = player.Character
+	end
+
+	local information = {
+		data = {
+			name = player.Name or "Character",
+			mod = false,
+			bot = isAi(player),
+			char = playerchar or nil,
+			--health = localhuman.Health or 0,
+			--maxhealth = localhuman.MaxHealth or 0
+			--center = bot and player:FindFirstChild("HumanoidRootPart") or player.Character:FindFirstChild("HumanoidRootPart"),
+			--distance = (localroot.CFrame.Position - centerpart.CFrame.Position).Magnitude / 3.157
+		},
+		drawings = {
+			name = newTextDrawing({Text = player.Name}),
+			box = newDrawing("Square", {Thickness = 1.5, Filled = false}),
+			distance = newTextDrawing({Text = "0m"}),
+			health = newTextDrawing({Text = "0hp"}),
+			healthbar = newDrawing("Line", {Thickness = 2}),
+			weapon = newTextDrawing({Text = "none", Center = false}),
+			kda = newTextDrawing({Text = "0", Center = false})
+		},
+		highlights = {
+			cham = newHighlight({Adornee = char})
+		}
+	}
+
+	checkprint("+",player.Name)
+	playerdata[player] = information
+end
+
+local function addDrawing(object, name, textdata)
+	local information = {
+		name = name,
+		obj = object,
+		originaltext = textdata,
+		drawing = newTextDrawing({Text = textdata})
+	}
+
+	otherdata[object] = information
+end
+
+local function removeDrawing(object)
+	for i,v in pairs(otherdata) do
+		if i == object then
+			v.drawing.Visible = false
+			v.drawing:Destroy()
+		end
+	end
+end
+
+local function removePlayer(player)
+	for i, v in pairs(playerdata) do
+		if i == player then
+			for n,m in pairs(v.drawings) do
+				m.Visible = false
+				m:Destroy()
+				--print(n,m)
+			end
+			for o,p in pairs(v.highlights) do
+				p.Enabled = false
+				p:Remove()
+			end
+			playerdata[player] = nil
+			checkprint("-",player.Name)
+			return
+		end
+	end
+end
+
+local function createBeam(startpos, endpos, color, fadeRate, width)
+    local startPart = newinstance("Part")
+    local endPart = newinstance("Part")
+
+	local startattachment = newinstance("Attachment", startPart)
+	startattachment.Name = "hiya"
+	local endattachment = newinstance("Attachment", endPart)
+	endattachment.Name = "hiya2"
+
+	local beam = newinstance("Beam")
+
+	startPart.Transparency = 1
+	startPart.Anchored = true
+	startPart.CanCollide = false
+	startPart.Position = startpos
+	startPart.Parent = workspace
+	startPart.CanQuery = false
+
+	endPart.Transparency = 1
+	endPart.Anchored = true
+	endPart.CanCollide = false
+	endPart.Position = endpos
+	endPart.CanQuery = false
+	endPart.Parent = workspace
+
+	beam.Color = ColorSequence.new(color)
+	beam.FaceCamera = true
+	beam.Attachment0 = startattachment
+	beam.Attachment1 = endattachment
+	beam.Width0 = width
+	beam.Width1 = width
+	beam.Transparency = NumberSequence.new(0)
+	beam.LightEmission = 0.5
+
+	beam.Parent = workspace
+	beam.Texture = "rbxassetid://446111271"
+	beam.TextureLength = (startPart.Position - endPart.Position).Magnitude
+	beam.TextureSpeed = 4
+
+	task.spawn(function()
+		local i = 0
+		while i < 1 do
+			i = i + fadeRate
+			beam.Transparency = NumberSequence.new(i)
+			task.wait(0.01)
+		end
+		beam:Destroy()
+		startPart:Destroy()
+		endPart:Destroy()
+	end)
+
+	return beam
+end
+
+local function movementPrediction(Origin, Destination, DestinationVelocity, ProjectileSpeed)
+    local Distance = (Destination - Origin).Magnitude
+    local TimeToHit = (Distance / ProjectileSpeed)
+    local Predicted = Destination + DestinationVelocity * TimeToHit
+    local Delta = (Predicted - Origin).Magnitude / ProjectileSpeed
+    
+    ProjectileSpeed = ProjectileSpeed - 0.013 * ProjectileSpeed ^ 2 * TimeToHit ^ 2
+    TimeToHit = TimeToHit + (Delta / ProjectileSpeed)
+
+    local Actual = Destination + DestinationVelocity * TimeToHit
+    return Actual
+end
+
+local function dropPrediction(Origin, Destination, ProjectileSpeed, ProjectileDrop)
+    local Distance = (Destination - Origin).Magnitude
+    local TimeToHit = (Distance / ProjectileSpeed)
+    local ProperSpeed = ProjectileSpeed - 0.013 * ProjectileSpeed ^ 2 * TimeToHit ^ 2
+    TimeToHit = TimeToHit + (Distance / ProperSpeed)
+    
+    local DropTime = ProjectileDrop * TimeToHit ^ 2
+    if tostring(DropTime):find("nan") or (Distance <= 100) then
+        return 0 
+    end
+    return DropTime;
+end
+
+local function ray(p1, lookvect)
+	local result = workspace:Raycast(p1, lookvect, rayparams)
+
+	return result
+end
+
+local function rayBetween2(p1,p2)
+	local result = workspace:Raycast(p2, p1 - p2, rayparams)
+
+	return result
+end
+
+local function isPartVisible(part, origin)
+
+	-- question mark???
+	if not part or not part.Position then return false end
+
+	local result = rayBetween2(part.CFrame.Position, origin)
+
+	if result then
+		local hit = result.Instance
+
+		return not hit or hit:IsDescendantOf(part.Parent)
+	end
+
+	return false
+end
+
+local function getVisibleOrigin(destination, origin)
+	local amount = library.flags.manipulationamount
+	if isPartVisible(destination, origin) then
+		return false
+	end
+	for i = 1, amount do
+		local grabbed = false
+		local possible = {
+            newVector3(origin.X + i, origin.Y, origin.Z),
+			newVector3(origin.X, origin.Y, origin.Z + i),
+			newVector3(origin.X, origin.Y + i, origin.Z),
+
+            newVector3(origin.X - i, origin.Y, origin.Z),
+            newVector3(origin.X, origin.Y, origin.Z - i),
+			newVector3(origin.X, origin.Y - i, origin.Z)
+        }
+
+		for _, newOr in pairs(possible) do
+			if isPartVisible(destination, newOr) then
+				grabbed = true
+				return newOr
+			end
+		end
+
+		if grabbed then break end
+	end
+
+	-- if nothing passed
+	return false
+end
+
+local function isResolvable(destination, origin, amount)
+	if isPartVisible(destination, origin) then
+		return false
+	end
+	local newOr = newVector3(origin.X, origin.Y - amount, origin.Z)
+	if isPartVisible(destination, newOr) then
+		return newOr
+	end
+
+	-- if nothing passed
+	return false
+end
+
+local function getHighestPart(playerdata, startpart)
+	for i = 1, #characterparts do
+		if isPartVisible(playerdata.char:FindFirstChild(characterparts[i]),startpart) then
+			return characterparts[i]
+		end
+	end
+end
+
+local function grabAmmo(weapon)
+	local ammo, maxammo
+    if weapon then
+        if weapon:FindFirstChild("Attachments") then
+            if weapon.Attachments:FindFirstChild("Magazine") then -- mag/clip
+                -- regular guns
+                if #weapon.Attachments.Magazine:GetChildren() > 0 then -- checks if gun has a mag or not
+                    ammo = weapon.Attachments.Magazine:GetChildren()[1].ItemProperties:GetAttribute("LoadedAmmo")
+                    maxammo = weapon.Attachments.Magazine:GetChildren()[1].ItemProperties:GetAttribute("MaxLoadedAmmo")
+                end
+            else
+                -- mosin/sks
+		        if weapon:FindFirstChild("ItemProperties") then
+                    ammo = weapon.ItemProperties:GetAttribute("LoadedAmmo")
+                    maxammo = weapon.ItemProperties:GetAttribute("MaxLoadedAmmo")
+		        end
+            end
+        end
+    end
+    return ammo, maxammo
+end
+
+local function grabKD(playername)
+	if replicatedstorage.Players:FindFirstChild(playername) then
+		local repinstance = replicatedstorage.Players:FindFirstChild(playername)
+		local wipestats = repinstance.Status.Journey.WipeStatistics
+		if wipestats then
+			local k = wipestats:GetAttribute("Kills")
+			local d = wipestats:GetAttribute("Deaths")
+			if k == 0 then k = 1 end
+			if d == 0 then d = 1 end
+			return round(k/d*10)/10
+		end
+	end
+	return 0
+end
+
+-- CHATGPT METHOD CHATGPT METHOD CHATGPT METHOD CHATGPT METHOD CHATGPT METHOD CHATGPT METHOD CHATGPT METHOD CHATGPT METHOD 
+-- WTF IS THIS MATH I DONT EVEN KNOW
+local function getColorBetweenColors(value, color1, color2)
+    -- Normalize the value to be between 0 and 1 (reverse it so 1 = color1 and 0 = color2)
+    local normalizedValue = math.clamp(value, 0, 1)
+    
+    -- Interpolate between color1 and color2 using the normalized value
+    local red = color1.R + (color2.R - color1.R) * (1 - normalizedValue)
+    local green = color1.G + (color2.G - color1.G) * (1 - normalizedValue)
+    local blue = color1.B + (color2.B - color1.B) * (1 - normalizedValue)
+    
+    -- Return the Color3 for the current color shift
+    return Color3.new(red, green, blue)
+end
+
+local function updateData()
+	LPH_NO_VIRTUALIZE(function()
+		for i, v in pairs(playerdata) do
+
+			if isMod(i) then 
+				v.data.mod = true 
+			end
+
+			-- fuck it whatever we can check if its a bot later for stuff
+			v.data.char = i
+			if not v.data.bot then
+				v.data.char = i.Character
+			end
+
+			local char = v.data.char
+
+			if localchar and localroot and v.data.char and char:FindFirstChild("HumanoidRootPart") and char:FindFirstChild("Humanoid") then
+				local dist = (localroot.Position - char.HumanoidRootPart.CFrame.Position).Magnitude / 3.157
+				
+				if not v.data.bot then
+					local helditem = replicatedstorage.Players[v.data.name].Status.GameplayVariables.EquippedTool.Value
+					local itemammo, itemmaxammo = grabAmmo(helditem)
+					v.data.item = helditem
+					v.data.itemammo = itemammo
+					v.data.itemmaxammo = itemmaxammo
+				end
+
+				v.data.distance = round(dist)
+				v.data.health = round(char.Humanoid.Health) or 0
+				v.data.maxhealth = round(char.Humanoid.MaxHealth) or 100
+				local part = char:FindFirstChild(library.flags.aimbone)
+				if part then
+					v.data.targetpart = part
+				end
+			end
+		end
+	end)()
+end
+
+local function updateDrawing()
+	LPH_NO_VIRTUALIZE(function()
+		if localchar and localroot then
+			for i, v in pairs(playerdata) do
+				if v.data.char and v.data.char:FindFirstChild("HumanoidRootPart") then
+
+					local centerpart = v.data.char.HumanoidRootPart.CFrame.Position
+
+					local vect, onscreen = camera:WorldToViewportPoint(centerpart)
+
+					local scaleFactor = 1 / (vect.z * tan(rad(camera.FieldOfView / 2)) * 2) * 1000
+					local width, height = 4 * scaleFactor, 5.5 * scaleFactor
+					local x, y = vect.x, vect.y
+
+					local dist = v.data.distance
+
+					if not(dist) then continue end
+
+					local uncheckedSize = round((library.flags.textsize-((dist/10)/library.flags.textsize))*10)/10
+
+					local textSize = max(library.flags.mintextsize, uncheckedSize)
+
+					local topoffset = y - height / 2 - 9
+					local bottomoffset = y + height / 2 + 6
+
+					-- really funny way to do this but im fuckin with it lmfao
+
+					local drawsettings = {
+						name = {library.flags.nameesp,library.flags.namecolor},
+						distance = {library.flags.distanceesp,library.flags.distancecolor},
+						box = {library.flags.boxesp,library.flags.boxcolor},
+						weapon = {library.flags.weaponesp,library.flags.weaponcolor},
+						kda = {library.flags.kdaesp,library.flags.kdacolor},
+						health = {library.flags.healthesp,library.flags.healthcolor},
+						healthbar = {library.flags.healthbaresp,library.flags.healthbarcolor, library.flags.dynamichealthbaresp, library.flags.dynamichealthbarcolor},
+						cham = {library.flags.fillcham,library.flags.fillchamcolor,library.flags.filltransparency,library.flags.occludedcham},
+						chamoutline = {library.flags.outlinecham,library.flags.outlinechamcolor,library.flags.outlinetransparency}
+					}
+
+					if v.data.bot then
+						drawsettings = {
+							name = {library.flags.ainameesp,library.flags.ainamecolor},
+							distance = {library.flags.aidistanceesp,library.flags.aidistancecolor},
+							box = {library.flags.aiboxesp,library.flags.aiboxcolor},
+							weapon = {library.flags.aiweaponesp,library.flags.aiweaponcolor},
+							health = {library.flags.aihealthesp,library.flags.aihealthcolor},
+							healthbar = {library.flags.aihealthbaresp,library.flags.aihealthbarcolor, library.flags.aidynamichealthbaresp, library.flags.aidynamichealthbarcolor},
+							cham = {library.flags.aifillcham,library.flags.aifillchamcolor,library.flags.aifilltransparency,library.flags.aioccludedcham},
+							chamoutline = {library.flags.aioutlinecham,library.flags.aioutlinechamcolor,library.flags.aioutlinetransparency}
+						}
+					end
+
+					v.drawings.name.Visible = drawsettings.name[1] and onscreen
+					local nametext = v.data.name
+					
+					if v.data.mod then
+						nametext = nametext .. " (mod)"
+					end
+					v.drawings.name.Text = nametext
+					v.drawings.name.Color = drawsettings.name[2]
+					v.drawings.name.Position = newVector2(x, topoffset)
+					v.drawings.name.Size = textSize
+
+					v.drawings.health.Visible = drawsettings.health[1] and onscreen
+					v.drawings.health.Color = drawsettings.health[2]
+					v.drawings.health.Position = newVector2(x, bottomoffset)
+					v.drawings.health.Text = v.data.health .. "hp"
+					v.drawings.health.Size = textSize
+
+					if drawsettings.health[1] then
+						bottomoffset = bottomoffset + 12
+					end
+
+					v.drawings.distance.Visible = drawsettings.distance[1] and onscreen
+					v.drawings.distance.Color = drawsettings.distance[2]
+					v.drawings.distance.Position = newVector2(x, bottomoffset)
+					v.drawings.distance.Text = dist .. "m"
+					v.drawings.distance.Size = textSize
+
+					v.drawings.box.Visible = drawsettings.box[1] and onscreen
+					v.drawings.box.Size = newVector2(width,height)
+					v.drawings.box.Color = drawsettings.box[2]
+					v.drawings.box.Position = newVector2(x - width / 2, y - height / 2 + 5)
+
+					v.drawings.weapon.Visible = drawsettings.weapon[1] and onscreen
+					v.drawings.weapon.Color = drawsettings.weapon[2]
+					v.drawings.weapon.Center = false
+					v.drawings.weapon.Position = newVector2(x+width/2 + 3, y - height / 2 + 2)
+					v.drawings.weapon.Size = textSize
+					local item = v.data.item
+					local displayitem = "none"
+					if item then
+						displayitem = tostring(item)
+					end
+					v.drawings.weapon.Text = displayitem
+
+					if not v.data.bot then
+						local kdoffset = 2
+						if drawsettings.weapon[1] then
+							kdoffset = 12
+						end
+
+						v.drawings.kda.Visible = drawsettings.kda[1] and onscreen
+						v.drawings.kda.Color = drawsettings.kda[2]
+						v.drawings.kda.Center = false
+						v.drawings.kda.Position = newVector2(x+width/2 + 3, y - height / 2 + kdoffset)
+						v.drawings.kda.Text = grabKD(v.data.name) .. "kd"
+						v.drawings.kda.Size = textSize
+					end
+
+					-- health can go into negatives so this is just a check to make sure the bar doesnt just go down
+                    local h = max(0,v.data.health)
+					local health = h/v.data.maxhealth
+
+					local col = drawsettings.healthbar[2]
+					if drawsettings.healthbar[3] then
+						local dynamic = getColorBetweenColors(health, drawsettings.healthbar[2], drawsettings.healthbar[4])
+						col = dynamic
+					end
+					v.drawings.healthbar.Visible = drawsettings.healthbar[1] and onscreen
+					v.drawings.healthbar.Color = col
+					v.drawings.healthbar.From = newVector2(x - width / 2-3, y + height / 2 + 5)
+					v.drawings.healthbar.To = newVector2(x - width / 2-3, v.drawings.healthbar.From.Y - health * height)
+
+					v.highlights.cham.Adornee = v.data.char
+					v.highlights.cham.Enabled = drawsettings.cham[1] or drawsettings.chamoutline[1]
+					local type = "AlwaysOnTop"
+					if drawsettings.cham[4] then
+						type = "Occluded"
+					end
+					v.highlights.cham.DepthMode = type
+					if drawsettings.cham[1] then
+						v.highlights.cham.FillTransparency = drawsettings.cham[3]
+						v.highlights.cham.FillColor = drawsettings.cham[2]
+					else
+						v.highlights.cham.FillTransparency = 1
+					end
+					if drawsettings.chamoutline[1] then
+						v.highlights.cham.OutlineTransparency = drawsettings.chamoutline[3]
+						v.highlights.cham.OutlineColor = drawsettings.chamoutline[2]
+					else
+						v.highlights.cham.OutlineTransparency = 1
+					end
+				else
+					for o,p in pairs(v.drawings) do
+						p.Visible = false
+					end
+				end
+			end
+
+			for i,v in pairs(otherdata) do
+			-- extract esp
+				if v.name == "extract" then
+					local pos = i.Position
+					if library.flags.extractesp and pos then
+						-- its fine to do some math in here, it really aint too bad
+						local rawdist = (localroot.Position - pos).Magnitude / 3.157
+						local vect, onscreen = camera:WorldToViewportPoint(pos)
+						if library.flags.extractmaxdistance >= rawdist then
+							v.drawing.Visible = library.flags.extractesp and onscreen
+							v.drawing.Color = library.flags.extractcolor
+							v.drawing.Position = newVector2(vect.x, vect.y)
+							local text = "extract"
+							local uncheckedSize = (round((library.flags.textsize-((rawdist/10)/library.flags.textsize))*10)/10)
+							local textSize = max(library.flags.mintextsize, uncheckedSize)
+							v.drawing.Size = textSize
+							if library.flags.extractdistance then
+								text = text .. " (" .. round(rawdist) .. "m)"
+							end
+							v.drawing.Text = text
+						else
+							v.drawing.Visible = false
+						end
+					else
+						v.drawing.Visible = false
+					end
+				end
+
+                if v.name == "quest" then
+                    local part = i.PrimaryPart
+                    if library.flags.questesp and part then
+                        local rawdist = (localroot.Position - part.Position).Magnitude / 3.157
+                        if library.flags.questmaxdistance >= rawdist then
+                            local vect, onscreen = camera:WorldToViewportPoint(part.Position)
+                            v.drawing.Visible = library.flags.questesp and onscreen
+                            v.drawing.Color = library.flags.questcolor
+                            v.drawing.Position = newVector2(vect.x, vect.y)
+							local uncheckedSize = (round((library.flags.textsize-((rawdist/10)/library.flags.textsize))*10)/10)
+							local textSize = max(library.flags.mintextsize, uncheckedSize)
+							v.drawing.Size = textSize
+                            local text = part.Parent.ItemProperties:GetAttribute("CallSign")
+                            if library.flags.questdistance then
+                                text = text .. " (" .. round(rawdist) .. "m)"
+                            end
+                            v.drawing.Text = text
+                        else
+                            v.drawing.Visible = false
+                        end
+                    else
+						v.drawing.Visible = false
+					end
+                end
+
+				if v.name == "corpse" then
+					local part = i:FindFirstChild("Head") or i:FindFirstChild("UpperTorso")
+					if library.flags.corpseesp and part then
+						-- its fine to do some math in here, it really aint too bad
+						local rawdist = (localroot.Position - part.Position).Magnitude / 3.157
+						if library.flags.corpsemaxdistance >= rawdist then
+							local vect, onscreen = camera:WorldToViewportPoint(part.Position)
+							v.drawing.Visible = library.flags.corpseesp and onscreen
+							v.drawing.Color = library.flags.corpsecolor
+							v.drawing.Position = newVector2(vect.x, vect.y)
+							local uncheckedSize = (round((library.flags.textsize-((rawdist/10)/library.flags.textsize))*10)/10)
+							local textSize = max(library.flags.mintextsize, uncheckedSize)
+							v.drawing.Size = textSize
+							local text = v.obj.Name
+							if library.flags.corpsedistance then
+							text = text .. " (" .. round(rawdist) .. "m)"
+							end
+							v.drawing.Text = text
+						else
+							v.drawing.Visible = false
+						end
+					else
+						v.drawing.Visible = false
+					end
+				end
+			end
+		end
+	end)()
+end
+
+local function setTarget()
+	LPH_NO_VIRTUALIZE(function()
+		local closestcam, closestdist, player = 9999,9999, nil
+		for i,v in pairs(playerdata) do
+			local char = v.data.char
+			local isbot = v.data.bot
+
+			if not(char) then continue end
+
+			local dist = v.data.distance
+
+			if not(dist) then continue end
+
+			local aimbone = char:FindFirstChild(library.flags.aimbone)
+
+			if not(aimbone) then continue end
+
+			local vect, onscreen = camera:WorldToViewportPoint(aimbone.Position)
+
+			-- ???
+			if not(vect) then continue end
+
+			if not(onscreen) then continue end
+
+			-- wtf how
+			if not(screencenter) then continue end
+
+			local distFromCenter = (newVector2(vect.X, vect.Y) - screencenter).Magnitude
+
+			-- hate lua
+			if not(distFromCenter) then continue end
+
+			local rad = library.flags.aimradius
+
+			if rad == 0 then rad = 2000 end
+
+			local maxdist = library.flags.aimdistance
+
+			if maxdist == 0 then maxdist = 2000 end
+
+			if distFromCenter <= rad and dist <= maxdist then
+				if (library.flags.targetai and (isbot or not isbot)) or not(library.flags.targetai and isbot) then
+					if library.flags.sortby == "center" then
+						if distFromCenter < closestcam then
+							closestcam = distFromCenter
+							player = v.data
+						end
+					elseif library.flags.sortby == "distance" then
+						if dist < closestdist then
+							closestdist = dist
+							player = v.data
+						end
+					elseif library.flags.sortby == "either" then
+						if dist < closestdist or distFromCenter < closestcam then
+							closestdist = dist
+							closestcam = distFromCenter
+							player = v.data
+						end
+					end
+				end
+			end
+		end
+
+		targetdata = player
+	end)()
+end
+
+-- runs once on load
+for _, player in next, players:GetPlayers() do
+    if player ~= localplayer then
+        addPlayer(player)
+    end
+end
+
+local playeraddloop 
+playeraddloop = players.PlayerAdded:Connect(LPH_NO_VIRTUALIZE(function(player)
+	task.wait(0.01)
+    if player ~= localplayer then
+        addPlayer(player)
+    end
+end))
+
+local playerdelloop 
+playerdelloop = players.PlayerRemoving:Connect(LPH_NO_VIRTUALIZE(function(player)
+    removePlayer(player)
+end))
+
+
+local aiz = workspace.AiZones
+
+if aiz then
+    -- bots
+    for _, bot in pairs(aiz:GetDescendants()) do
+        if isAi(bot) then
+            addPlayer(bot)
+        end
+    end
+
+    local botaddloop
+    botaddloop = aiz.DescendantAdded:Connect(LPH_NO_VIRTUALIZE(function(bot)
+        task.wait(0.05)
+        if isAi(bot) then
+            addPlayer(bot)
+        end
+    end))
+
+    local botdelloop
+    botdelloop = aiz.DescendantRemoving:Connect(LPH_NO_VIRTUALIZE(function(bot)
+        removePlayer(bot)
+    end))
+end
+
+local nc = workspace.NoCollision
+if nc then
+    local ex = nc.ExitLocations
+    if ex then
+        for _, extract in pairs(ex:GetDescendants()) do
+            if extract.Name == "Exit" then
+                addDrawing(extract, "extract", "extract")
+            end
+        end
+
+        local extractaddloop
+        extractaddloop = ex.DescendantAdded:Connect(LPH_NO_VIRTUALIZE(function(extract)
+            task.wait(0.05)
+            if extract.Name == "Exit" then
+                addDrawing(extract, "extract", "extract")
+            end
+        end))
+
+        local extractdelloop
+        extractdelloop = ex.DescendantRemoving:Connect(LPH_NO_VIRTUALIZE(function(extract)
+            removeDrawing(extract)
+        end))
+    end
+end
+
+local quests = workspace.QuestItems
+
+if quests then
+    for a, quest in pairs(quests:GetChildren()) do
+		if quest:GetAttribute("Hidden") ~= nil and quest:GetAttribute("Hidden") == false then
+        	if quest.PrimaryPart then
+				addDrawing(quest, "quest", "quest")
+			else
+				local con
+				con = quest.DescendantAdded:Connect(function(que)
+					addDrawing(quest, "quest", "quest")
+					con:Disconnect()
+				end)
+			end
+		end
+    end
+end
+
+local drop = workspace.DroppedItems
+
+if drop then
+    for _, body in pairs(drop:GetDescendants()) do
+        if body:FindFirstChild("Humanoid") then
+            addDrawing(body, "corpse", body.Name)
+        end
+    end
+
+    local corpseaddloop
+    corpseaddloop = drop.DescendantAdded:Connect(LPH_NO_VIRTUALIZE(function(body)
+        task.wait(0.05)
+        if body:FindFirstChild("Humanoid") then
+            addDrawing(body, "corpse", body.Name)
+        end
+    end))
+
+    local corpsedelloop
+    corpsedelloop = drop.DescendantRemoving:Connect(LPH_NO_VIRTUALIZE(function(body)
+        removeDrawing(body)
+    end))
+end
+
+-- all the normal functions, this is slowed down because this stuff isnt rendered
+local elapsed = 0
+local loop
+loop = runservice.Heartbeat:Connect(LPH_NO_VIRTUALIZE(function(dt)
+	if not(localchar or localroot or localhuman) then 
+		return 
+	end
+
+	if library.flags.underground and library.flags.undergroundbind then
+        if danceTrack then
+            danceTrack.TimePosition = 2.9
+        end
+        dysenc[1] = localroot.CFrame
+        dysenc[2] = localroot.AssemblyLinearVelocity
+		dysenc[3] = localchar
+        local SpoofThis = dysenc[1]
+        SpoofThis = SpoofThis * CFrame.Angles(rad(-81.8), rad(-3.9), rad(17.9))
+        SpoofThis = SpoofThis + newVector3(0, -2.09, 0)
+        localroot.CFrame = SpoofThis
+
+		if undergroundPosClone then
+			undergroundPosClone.CFrame = localroot.CFrame
+		end
+
+        runservice.RenderStepped:Wait()
+        if dysenc[1] then
+            localroot.CFrame = dysenc[1]
+            localroot.AssemblyLinearVelocity = dysenc[2]
+        end
+    end
+
+	if library.flags.blink and library.flags.blinkbind then
+		local lookVector = camera.CFrame.LookVector
+		local rightVector = camera.CFrame.RightVector
+
+		local moveDirection = newVector3(0, 0, 0)
+
+		-- Horizontal movement
+		if keysDown[Enum.KeyCode.W] then
+			moveDirection = moveDirection + lookVector
+		end
+		if keysDown[Enum.KeyCode.S] then
+			moveDirection = moveDirection - lookVector
+		end
+		if keysDown[Enum.KeyCode.A] then
+			moveDirection = moveDirection - rightVector
+		end
+		if keysDown[Enum.KeyCode.D] then
+			moveDirection = moveDirection + rightVector
+		end
+
+		-- Vertical movement
+		if keysDown[Enum.KeyCode.E] then
+			moveDirection = moveDirection + newVector3(0, 1, 0)
+		end
+		if keysDown[Enum.KeyCode.Q] then
+			moveDirection = moveDirection - newVector3(0, 1, 0)
+		end
+
+		if moveDirection.Magnitude > 0 then
+			moveDirection = moveDirection.Unit
+			localroot.CFrame = localroot.CFrame + moveDirection * library.flags.blinkspeed * runservice.RenderStepped:Wait()
+		end
+	end
+
+	elapsed = elapsed + dt
+	while elapsed > 0.02 do
+		elapsed = elapsed - 0.02
+
+		camera = workspace.CurrentCamera
+
+		updateData()
+
+		if library.flags.thirdperson and library.flags.thirdpersonbind then
+			localplayer.CameraMinZoomDistance = library.flags.thirdpersondistance
+			localplayer.CameraMaxZoomDistance = library.flags.thirdpersondistance
+			localplayer.DevEnableMouseLock = true
+			localplayer.CameraMode = "Classic"
+		else
+			localplayer.CameraMode = Enum.CameraMode.LockFirstPerson
+			localplayer.CameraMinZoomDistance = 0
+			localplayer.CameraMaxZoomDistance = 0
+		end
+
+		if library.flags.speed and library.flags.speedbind then
+			if localhuman.MoveDirection.Magnitude > 0 then
+				localchar:TranslateBy((localhuman.MoveDirection * library.flags.speedchanger) * runservice.Heartbeat:Wait() * 9.8)
+			end
+		end
+
+		if localchar:FindFirstChild("Head") then
+			if library.flags.jesus then
+				local hitPart = ray(localchar.Head.CFrame.Position, newVector3(0, -5, 0) + localchar.Head.CFrame.lookVector * 5)
+				if hitPart and hitPart.Material == Enum.Material.Water then
+					local underpart = newinstance("Part")
+					underpart.Name = "crackheadjesus"
+					underpart.Parent = workspace
+					underpart.Position = hitPart.Position
+					underpart.Anchored = true
+					underpart.CanCollide = true
+					underpart.Size = newVector3(10,0.2,10)
+					underpart.Transparency = 1
+				end
+			end
+
+			if library.flags.spiderman and library.flags.spidermanbind then
+				local headr = ray(localchar.Head.CFrame.Position, localchar.Head.CFrame.lookVector * 2);
+				local legr = ray(localchar.LeftUpperLeg.CFrame.Position, localchar.LeftUpperLeg.CFrame.lookVector * 2);
+				if headr and headr.Instance and legr and legr.Instance then 
+					localroot.Velocity = newVector3(localroot.Velocity.X, library.flags.spidermanspeed, localroot.Velocity.Z)
+					localhuman:ChangeState(Enum.HumanoidStateType.Climbing)
+				end
+			end
+		end
+
+		if library.flags.nofall then
+			local state = localhuman:GetState()
+			if (state == Enum.HumanoidStateType.FallingDown or state == Enum.HumanoidStateType.Freefall) and localroot.AssemblyLinearVelocity.Y < -15 then
+				localhuman:ChangeState(Enum.HumanoidStateType.Landed)
+			end
+		end
+
+		if library.flags.autoshoot and library.flags.autoshootbind and targetdata then
+			if library.flags.autoshootmaxdistance >= targetdata.distance and isPartVisible(targetdata.targetpart, camera.CFrame.Position) then
+				task.spawn(function()
+					task.wait(0.1)
+					mouse1press()
+					task.wait(0.1)
+					mouse1release()
+				end)
+			end
+		end
+	end
+end))
+
+-- i want the targetting to run 10x slower cuz it checks  a lotta shit
+local targetelapsed = 0
+local targetloop
+targetloop = runservice.Heartbeat:Connect(LPH_NO_VIRTUALIZE(function(dt)
+	if not(localchar or localroot or localhuman) then return end
+
+	targetelapsed = targetelapsed + dt
+	while targetelapsed > 0.3 do
+		targetelapsed = targetelapsed - 0.3
+		-- update dis just in case :)
+		screencenter = newVector2(camera.ViewportSize.X / 2, camera.ViewportSize.Y / 2)
+		-- set targ
+		setTarget()
+
+		if library.flags.removewateraround then
+			local ter = workspace.Terrain
+			if ter then
+				ter:ReplaceMaterialInTransform(
+					localroot.CFrame,
+					newVector3(20,20,20),
+					Enum.Material.Water,
+					Enum.Material.Air
+				)
+			end
+		end
+
+		if library.flags.gravity and library.flags.gravitybind then
+			workspace.Gravity = oldGrav + library.flags.gravitychanger
+		else
+			workspace.Gravity = oldGrav
+		end
+
+		if library.flags.hipheight and library.flags.hipheightbind then
+			localhuman.HipHeight = oldHH + library.flags.hipchanger
+		else
+			localhuman.HipHeight = oldHH
+		end
+
+		if library.flags.jump and library.flags.jumpbind then
+			localhuman.JumpHeight = oldJP + library.flags.jumpchanger
+		else
+			localhuman.JumpHeight = oldJP
+		end
+
+		-- its in here cuz this shit is VERY tweaky for some reason
+		if targetdata and targetdata.char then
+			if library.flags.upangleresolver and library.flags.upangleresolverbind then
+				task.spawn(function()
+					local oldAngle = targetdata.char:GetAttribute("UpAngle")
+					targetdata.char:SetAttribute("UpAngle", library.flags.upangleresolveramount)
+					task.wait(0.1)
+					targetdata.char:SetAttribute("UpAngle", oldAngle)
+				end)
+			end
+			-- this is so bad bro
+			if library.flags.resolveindicator and library.flags.resolver and library.flags.resolverbind then
+				local res = isResolvable(targetdata.targetpart, camera.CFrame.Position, library.flags.resolveramount)
+				resolvtext.Color = library.flags.resolveindicatorcolor
+				resolvtext.Position = newVector2(screencenter.X,screencenter.Y+10)
+				-- this thing make it so the indicator only show up when the possible visible origin is down 
+				if res then
+					resolvtext.Visible = true
+				else
+					resolvtext.Visible = false
+				end
+			else
+				resolvtext.Visible = false
+			end
+			if library.flags.manipindicator and library.flags.manipulation and library.flags.manipulationbind then
+				local manip = getVisibleOrigin(targetdata.targetpart, camera.CFrame.Position)
+				maniptext.Color = library.flags.manipindicatorcolor
+				if resolvtext.Visible then
+					maniptext.Position = newVector2(screencenter.X,screencenter.Y+24)
+				else
+					maniptext.Position = newVector2(screencenter.X,screencenter.Y+10)
+				end
+				if manip then
+					maniptext.Visible = true
+				else
+					maniptext.Visible = false
+				end
+			else
+				maniptext.Visible = false
+			end
+
+			if library.flags.target_inventory then
+				local repinstance = replicatedstorage.Players:FindFirstChild(targetdata.name)
+				if repinstance then
+					local slots = {
+						[1] = "none",
+						[2] = "none",
+						[3] = "none"
+					}
+					for i,v in pairs(repinstance.Inventory:GetChildren()) do
+						slots[i] = v.Name
+					end
+
+					local clothing = {
+						["gloves"] = "none",
+						["helmet"] = "none",
+						["mask"] = "none",
+						["backpack"] = "none",
+						["rig"] = "none",
+						["shirt"] = "none",
+						["leg"] = "none",
+						["pants"] = "none"
+					}
+
+					for i,v in pairs(repinstance.Clothing:GetChildren()) do
+						if v:FindFirstChild("ItemProperties") then
+							local type = v.ItemProperties:GetAttribute("CurrentFrameName")
+							if type == "ClothingGloves" then
+								clothing["gloves"] = v.Name
+							end
+							if type == "ClothingHeadware" then
+								clothing["helmet"] = v.Name
+							end
+							if type == "ClothingMask" then
+								clothing["mask"] = v.Name
+							end
+							if type == "ClothingBackpack" then
+								clothing["backpack"] = v.Name
+							end
+							if type == "ClothingChestRig" then
+								clothing["rig"] = v.Name
+							end
+							if type == "ClothingLegArmor" then
+								clothing["leg"] = v.Name
+							end
+						end
+						if string.find(v.Name:lower(), "shirt") then
+							clothing["shirt"] = v.Name
+						end
+						if string.find(v.Name:lower(), "pants") then
+							clothing["pants"] = v.Name
+						end
+					end
+
+					library.hotbarSlot1:SetValue(slots[1])
+					library.hotbarSlot2:SetValue(slots[2])
+					library.hotbarSlot3:SetValue(slots[3])
+
+					library.inventoryGloves:SetValue(clothing["gloves"])
+					library.inventoryHelmet:SetValue(clothing["helmet"])
+					library.inventoryMask:SetValue(clothing["mask"])
+					library.inventoryBackpack:SetValue(clothing["backpack"])
+					library.inventoryRig:SetValue(clothing["rig"])
+					library.inventoryShirt:SetValue(clothing["shirt"])
+					library.inventoryLeg:SetValue(clothing["leg"])
+					library.inventoryPants:SetValue(clothing["pants"])
+				end
+			end
+
+			if library.flags.target_info then
+				library.targetName:SetValue(targetdata.name)
+				if targetdata.char and targetdata.targetpart then
+					library.targetVis:SetValue(tostring(isPartVisible(targetdata.targetpart, camera.CFrame.Position)))
+				end
+				library.targetHealth:SetValue(targetdata.health .. "hp")
+				library.targetDistance:SetValue(targetdata.distance .. "m")
+
+				-- quite annoying
+				local hasAmmo = targetdata.itemammo and targetdata.itemmaxammo
+				local listed = tostring(targetdata.item)
+				if hasAmmo then
+					listed = listed .. " " .. targetdata.itemammo .. "/" .. targetdata.itemmaxammo
+				end
+				if listed ~= "nil" then
+					library.targetTool:SetValue(listed)
+				else
+					library.targetTool:SetValue("none")
+				end
+			end
+		else
+			-- kill me now
+			if library.flags.target_info then
+				library.targetName:SetValue("none")
+				library.targetVis:SetValue("none")
+				library.targetHealth:SetValue("none")
+				library.targetDistance:SetValue("none")
+				library.targetTool:SetValue("none")
+			end
+
+			if library.flags.target_inventory then
+				library.hotbarSlot1:SetValue("none")
+				library.hotbarSlot2:SetValue("none")
+				library.hotbarSlot3:SetValue("none")
+				library.inventoryGloves:SetValue("none")
+				library.inventoryHelmet:SetValue("none")
+				library.inventoryMask:SetValue("none")
+				library.inventoryBackpack:SetValue("none")
+				library.inventoryRig:SetValue("none")
+				library.inventoryShirt:SetValue("none")
+				library.inventoryLeg:SetValue("none")
+				library.inventoryPants:SetValue("none")
+			end
+
+			maniptext.Visible = false
+			resolvtext.Visible = false
+		end
+	end
+end))
+
+local drawloop
+drawloop = runservice.Heartbeat:connect(LPH_NO_VIRTUALIZE(function()
+	if not(localchar or localroot or localhuman) then return end
+
+	updateDrawing()
+
+	if library.flags.removefog then
+		lighting.Atmosphere.Density = 0
+	else
+		lighting.Atmosphere.Density = oldDensity
+	end
+
+	if library.flags.timechanger then
+        lighting.ClockTime = library.flags.timevalue
+    end
+
+    if library.flags.customambient then
+        lighting.Ambient = library.flags.ambientcolor
+    else
+        lighting.Ambient = fromrgb(0, 0, 0)
+    end
+
+	fovcircle.Visible = library.flags.aimfov
+	fovcircle.Color = library.flags.aimcolor
+
+	fovcircle.Radius = library.flags.aimradius
+	if library.flags.dynamicfov and camera.FieldOfView ~= oldFov then
+		local diff = math.abs(oldFov/camera.FieldOfView)
+		fovcircle.Radius = library.flags.aimradius * diff
+	end
+
+	centerdot.Visible = library.flags.aimdot
+	centerdot.Color = library.flags.aimdotcolor
+
+	if targetdata and targetdata.char then
+		local bone = targetdata.targetpart
+		if bone then
+			local bonepos = bone.Position
+			local vect, onscreen = camera:WorldToViewportPoint(bonepos)
+
+			aimline.Visible = onscreen and library.flags.aimline
+			aimline.Color = library.flags.aimlinecolor
+			aimline.To = newVector2(vect.x,vect.y)
+
+			aimdot.Visible = onscreen and library.flags.aimdot
+			aimdot.Color = library.flags.aimdotcolor
+			aimdot.Position = newVector2(vect.x,vect.y)
+		end
+	else
+		aimline.Visible = false
+		aimdot.Visible = false
+	end
+end))
+
+-- hitmarkers
+--local mainguiloop
+--mainguiloop = localplayer.PlayerGui.MainGui.ChildAdded:Connect(LPH_NO_VIRTUALIZE(function(thing)
+	--print(thing)
+--end))
+
+local cameraloop
+cameraloop = camera.ChildAdded:Connect(LPH_NO_VIRTUALIZE(function(item)
+	local humanoid = item:FindFirstChild("Humanoid")
+	if humanoid then
+		local animplayed
+		animplayed = humanoid.AnimationPlayed:Connect(function(track)
+			if library.flags.instantequip and track.Name:lower():find("equip") then
+				track:AdjustSpeed(20)
+			end
+			if library.flags.instantreload and track.Name:lower():find("reload") then
+				local weapon = replicatedstorage.Players[localplayer.Name].Status.GameplayVariables.EquippedTool.Value
+				local itemprop = weapon:FindFirstChild("ItemProperties")
+				if weapon then
+					if itemprop:GetAttribute("MaxLoadedAmmo") then
+						track:AdjustSpeed(4)
+					else
+						track:AdjustSpeed(15)
+					end
+					--replicatedstorage.Remotes.Reload:InvokeServer(nil, 0.1, nil)
+				end
+			end
+		end)
+	end
+
+	task.wait(0.01)
+
+	if library.flags.hideclothes then
+		for _,v in pairs(item:GetDescendants()) do
+			if string.find(v.Name:lower(), "shirt") or string.find(v.Name:lower(), "gloves") then
+				v:Destroy()
+			end
+		end
+	end
+
+	if library.flags.modifyarmvisual then
+		local armparts = {}
+
+		for i,v in pairs(item:GetDescendants()) do
+			if (string.find(v.Name, "Arm") or string.find(v.Name, "Hand")) and v.Name ~= "Handle" then
+				table.insert(armparts,v)
+			end
+		end
+
+		for _,v in pairs(armparts) do
+			if v.ClassName == "MeshPart" or v.ClassName == "Part" then 
+				if library.flags.changearmtransparency and v.Transparency ~= 1 then
+                	v.Transparency = library.flags.armtransparency
+            	end
+				if library.flags.changearmcolor then
+					v.Color = library.flags.armcolor
+				end
+				if library.flags.changearmmaterial then
+					v.Material = Enum.Material[library.flags.armmaterial]
+				end
+			end
+			if v.ClassName == "MeshPart" then
+				if library.flags.changearmmaterial then
+					if library.flags.armmaterial == "ForceField" then
+                        v.TextureID = "rbxassetid://9305457875"
+                    else
+                        v.TextureID = ""
+                    end
+				end
+			end
+			for o,p in pairs(v:GetDescendants()) do
+				if v.ClassName == "MeshPart" or v.ClassName == "Part" then 
+					if library.flags.changearmtransparency and v.Transparency ~= 1 then
+                		v.Transparency = library.flags.armtransparency
+            		end
+					if library.flags.changearmcolor then
+						v.Color = library.flags.armcolor
+					end
+					if library.flags.changearmmaterial then
+						v.Material = Enum.Material[library.flags.armmaterial]
+					end
+				end
+				if v.ClassName == "MeshPart" then
+					if library.flags.changearmmaterial then
+						if library.flags.armmaterial == "ForceField" then
+                        	v.TextureID = "rbxassetid://9305457875"
+                    	else
+                        	v.TextureID = ""
+                    	end
+					end
+				end
+			end
+		end
+	end
+
+	local helditem = item:FindFirstChild("Item")
+	if library.flags.modifyweaponvisual and helditem then
+		for _,v in pairs(helditem:GetDescendants()) do
+			if v.Name == "SurfaceAppearance" then
+                v:Destroy()
+            end
+			if v.ClassName == "MeshPart" or v.ClassName == "Part" then 
+				if library.flags.changeitemtransparency and v.Transparency ~= 1 then
+                    v.Transparency = library.flags.itemtransparency
+                end
+				if library.flags.changeitemcolor then
+					v.Color = library.flags.itemcolor
+				end
+				if library.flags.changeitemmaterial then
+					v.Material = Enum.Material[library.flags.itemmaterial]
+				end
+			end
+			-- only meshparts have the textureid lol
+			if v.ClassName == "MeshPart" then
+				if library.flags.changeitemmaterial then
+					if library.flags.itemmaterial == "ForceField" then
+                        v.TextureID = "rbxassetid://9305457875"
+                    else
+                        v.TextureID = ""
+                    end
+				end
+			end
+		end
+	end
+end))
+
+local oldClient = gamevars.FPS.updateClient
+gamevars.FPS.updateClient = LPH_NO_VIRTUALIZE(function(...)
+	local args = {...}
+
+	if library.flags.instantaim then
+		args[1].AimInSpeed = 0
+		args[1].AimOutSpeed = 0
+	end
+
+	if library.flags.allfiremode then
+		args[1].FireModes = {"Auto", "Semi"}
+	end
+
+	if library.flags.instantequip then
+		args[1].EquipTValue = 100
+	end
+
+	if library.flags.fireratechanger then
+		args[1].FireRate = library.flags.fireratedelay
+	end
+
+	if library.flags.modeloffset then
+		local offset = CFrame.new(newVector3(library.flags.modeloffsetx,library.flags.modeloffsety,library.flags.modeloffsetz))
+		args[1].sprintOffSet = offset
+		args[1].sprintIdleOffset = offset
+		args[1].weaponOffSet = offset
+	end
+
+	if library.flags.noobstructions then
+		args[1].TouchWallPosY = 0
+		args[1].TouchWallPosZ = 0
+		args[1].TouchWallRotX = 0
+		args[1].TouchWallRotY = 0
+		args[1].springs.wallTouchTilt.Force = 0
+		args[1].springs.wallTouchTilt.speed = 0
+	else
+		args[1].springs.wallTouchTilt.Force = 50
+		args[1].springs.wallTouchTilt.Speed = 4
+	end
+
+	if library.flags.nosway then
+		args[1].springs.sway.Position = newVector3(0,0,0)
+		args[1].springs.gunSway.Position = newVector3(0,0,0)
+
+		args[1].springs.sway.Force = 0
+		args[1].springs.sway.Speed = 0
+		args[1].springs.gunSway.Force = 0
+		args[1].springs.gunSway.Speed = 0
+	else
+		args[1].springs.sway.Force = 100
+		args[1].springs.sway.Speed = 4
+		args[1].springs.gunSway.Force = 50
+		args[1].springs.gunSway.Speed = 4
+	end
+
+	if library.flags.instantlean then
+		args[1].springs.leanAlpha.Force = 50
+		args[1].springs.leanAlpha.Speed = 50
+	else
+		args[1].springs.leanAlpha.Force = 50
+		args[1].springs.leanAlpha.Speed = 4
+	end
+
+	if library.flags.nobobbing then
+		args[1].springs.walkCycle.Position = newVector3(0,0,0)
+        args[1].springs.sprintCycle.Position = newVector3(0,0,0)
+        args[1].springs.strafeTilt.Position = newVector3(0,0,0)
+        args[1].springs.jumpTilt.Position = newVector3(0,0,0)
+
+		args[1].springs.jumpTilt.Force = 0
+		args[1].springs.jumpTilt.Speed = 0
+
+		args[1].springs.walkCycle.Force = 0
+		args[1].springs.walkCycle.Speed = 0
+
+		args[1].springs.sprintCycle.Force = 0
+		args[1].springs.sprintCycle.Speed = 0
+
+		args[1].springs.strafeTilt.Force = 0
+		args[1].springs.strafeTilt.Speed = 0
+	else
+		args[1].springs.jumpTilt.Force = 90
+		args[1].springs.jumpTilt.Speed = 4
+
+		args[1].springs.walkCycle.Force = 50
+		args[1].springs.walkCycle.Speed = 4
+
+		args[1].springs.sprintCycle.Force = 50
+		args[1].springs.sprintCycle.Speed = 4
+
+		args[1].springs.strafeTilt.Force = 50
+		args[1].springs.strafeTilt.Speed = 4
+	end
+
+	if library.flags.norecoil then
+		args[1].springs.cameraRecoil.Force = 0
+		args[1].springs.cameraRecoil.Speed = 0
+
+		args[1].springs.recoilRot.Force = 0
+		args[1].springs.recoilRot.Speed = 0
+
+		args[1].springs.recoilPos.Force = 0
+		args[1].springs.recoilPos.Speed = 0
+	else
+		args[1].springs.cameraRecoil.Force = 100
+		args[1].springs.cameraRecoil.Speed = 6
+
+		args[1].springs.recoilRot.Force = 35
+		args[1].springs.recoilRot.Speed = 3
+
+		args[1].springs.recoilPos.Force = 75
+		args[1].springs.recoilPos.Speed = 5
+	end
+
+	return oldClient(unpack(args))
+end)
+
+local toyotacorolla
+toyotacorolla = hookmetamethod(game, "__newindex", LPH_NO_VIRTUALIZE(function(self, index, val)
+	if not checkcaller() then
+		if library.flags.underground and library.flags.undergroundbind and tostring(self) == "Humanoid" and index == "CameraOffset" then
+			val = val + newVector3(0,0,-library.flags.cameray)
+    	end
+	end
+
+	return toyotacorolla(self, index, val)
+end))
+
+local namecall
+namecall = hookmetamethod(game, "__namecall", LPH_NO_VIRTUALIZE(function(self, ...)
+    local args = {...}
+	local method = getnamecallmethod()
+    if not checkcaller() then
+		if method == "GetAttribute" then
+			--if library.flags.norecoil and args[1] == "RecoilStrength" then
+				--return 0.1
+			--end
+			if library.flags.nospread and args[1] == "AccuracyDeviation" then
+				return 0
+			end
+			if library.flags.nodrop and args[1] == "ProjectileDrop" then
+				return 0
+			end
+		end
+		if method == "InvokeServer" then
+			if library.flags.instantreload and self.Name == "Reload" then
+				args[2] = 0
+			end
+			if library.flags.instanthit and library.flags.instantmethod == "invoke" and self.name == "FireProjectile" then
+				if targetdata and bulletdata and bulletdata.part then
+					local part = bulletdata.part
+					if part then
+						local dist = part.Position - args[1]
+						task.spawn(function()
+							replicatedstorage.Remotes.ProjectileInflict:FireServer(
+								part,
+								CFrame.new(0,0.2,-0.2),
+								args[2],
+								args[3] + dist.Magnitude * 0.0065
+							)
+						end)
+					end
+				end
+			end
+		end
+		if method == "FireServer" then
+			if self.Name == "Drowning" and library.flags.antidrown then
+				return task.wait(9e9)
+			end
+		    if self.Name == "ProjectileInflict" then
+				-- antiban
+				if args[1] and args[1].Name == "HumanoidRootPart" then
+            		return coroutine.yield()
+        		end
+				if library.flags.instanthit and library.flags.instantmethod == "raycast" then
+                	args[4] = 0/0
+				end
+		    end
+		end
+		if method == "Raycast" then
+			if getinfo(3).short_src == "ReplicatedStorage.Modules.FPS.Bullet" then
+				--local args = {...}
+				if library.flags.instanthit and library.flags.instantmethod == "raycast" then
+					if targetdata and bulletdata and bulletdata.endpos then
+						local dir = bulletdata.endpos - args[1]
+						-- we have nothing to calculate the actual velocity unless im tweaking idk lmao
+						local velo = dir.Unit * 10
+						local dist = dir.Magnitude
+						args[2] = velo * dist
+					else
+						args[2] = args[2] * 5
+					end
+				end
+				if library.flags.ignorewater then
+					args[3].IgnoreWater = true
+				end
+				--return namecall(self, unpack(args))
+			end
+		end
+	end
+
+	return namecall(self, unpack(args))
+end))
+
+local oldBullet = gamevars.Bullet.CreateBullet
+gamevars.Bullet.CreateBullet = function(self,...)
+	local arguments = {...}
+	bulletdata = {}
+
+	local chance = library.flags.playeraimchance
+
+	if targetdata and targetdata.bot then
+		chance = library.flags.aiaimchance
+	end
+
+	if chance == 0 then chance = 100 end
+
+	-- no point in doin all the math if it aint even gonna aim lol
+	if arguments[4] and targetdata and library.flags.silentaim and random() <= chance/100 then
+		local oldHealth = 100
+		if targetdata.health ~= nil then
+			oldHealth = targetdata.health
+		end
+		local localAmmo = replicatedstorage.AmmoTypes:FindFirstChild(tostring(arguments[6]))
+		local targetpart = targetdata.targetpart
+		local aimp = arguments[4].CFrame.Position
+
+		if library.flags.underground and library.flags.undergroundbind and dysenc[3] then
+			aimp = dysenc[3]:FindFirstChild("Head").Position
+		end
+
+		if library.flags.randombone then
+			local randomized = characterparts[random(#characterparts)]
+			targetpart = targetdata.char:FindFirstChild(randomized)
+		end
+
+		if library.flags.onshotscan then
+			local highest = getHighestPart(targetdata,aimp)
+			if highest then -- returns nil sometimes if nothing is visible, just how it be sometimes
+				local pickedpart = targetdata.char:FindFirstChild(highest)
+				if pickedpart then
+					targetpart = pickedpart
+				end
+			end
+		end
+
+	if library.flags.manipulation and library.flags.manipulationbind then
+			task.spawn(function()
+				local bestOrigin = getVisibleOrigin(targetdata.targetpart,aimp)
+				if bestOrigin then
+					local savedPos = localroot.CFrame
+					local distFromNew = bestOrigin - savedPos.Position
+					localroot.CFrame = savedPos + distFromNew
+					aimp = aimp + distFromNew
+					targetpos = targetdata.targetpart.CFrame.Position
+					task.wait(library.flags.manipulationreturndelay)
+					localroot.CFrame = savedPos
+				end
+			end)
+		end
+
+		if library.flags.resolver and library.flags.resolverbind then
+			task.spawn(function()
+				local savedPos = localroot.CFrame
+				localroot.CFrame = savedPos - newVector3(0,library.flags.resolveramount,0)
+				aimp = aimp - newVector3(0,library.flags.resolveramount,0)
+				task.wait(library.flags.resolverreturndelay)
+				localroot.CFrame = savedPos
+			end)
+		end
+
+		if library.flags.vischeck and isPartVisible(targetpart, camera.CFrame.Position) or not library.flags.vischeck then 
+			local targetpos = targetpart.Position
+
+			if library.flags.prediction then
+				local movePred = movementPrediction(aimp, targetpos, targetpart.Velocity, localAmmo:GetAttribute("MuzzleVelocity"))
+				local bulletDrop = dropPrediction(aimp, movePred, localAmmo:GetAttribute("MuzzleVelocity"), localAmmo:GetAttribute("ProjectileDrop"))
+				targetpos = newVector3(movePred.X, movePred.Y + bulletDrop, movePred.Z)
+			end
+
+			arguments[4] = {
+				CFrame = CFrame.new(aimp, targetpos),
+				Position = aimp
+			}
+
+			bulletdata = {
+				part = targetpart,
+				startpos = aimp,
+				endpos = targetpos
+			}
+
+			if library.flags.bullettracer then
+				local b = createBeam(aimp, targetpos, library.flags.bullettracercolor, library.flags.tracerrate, library.flags.tracerwidth)
+				if library.flags.onhittracer then
+					task.spawn(function()
+						task.wait(0.1)
+						if targetdata.health ~= nil then
+							local newHealth = targetdata.health
+							if newHealth < oldHealth then
+								b.Color = ColorSequence.new(library.flaggs.onhittracercolor)
+							end
+						end
+					end)
+				end
+			end
+		end
+	end
+
+	if library.flags.shotamount > 1 then
+		for i = 1, library.flags.shotamount-1 do
+			oldBullet(self,unpack(arguments))
+		end
+	end
+
+	return oldBullet(self,unpack(arguments))
+end
+
+
+getgenv().loaded = true
+local Time = (string.format("%.4f", os.clock() - Clock))
+library:SendNotification(("Loaded In "..tostring(Time)), 6)
+library:SendNotification(string.format("%.2f",((getgenv().expiration - os.time() ) / 36
