@@ -1,24 +1,13 @@
-if not LPH_OBFUSCATED then
-    LPH_JIT = function(...) return ... end
-    LPH_JIT_MAX = function(...) return ... end
-    LPH_NO_VIRTUALIZE = function(...) return ... end
-    LPH_NO_UPVALUES = function(f) return(function(...) return f(...) end) end
-    LPH_ENCSTR = function(...) return ... end
-    LPH_ENCNUM = function(...) return ... end
-    LPH_CRASH = function() while true do end end
-end
-
 if not getgenv().expiration then 
     getgenv().expiration = 9999999999
 end
 
---updates server pos faster?
-setfflag("S2PhysicsSenderRate", "250")
+-- setfflag("S2PhysicsSenderRate", "250")
 
 getgenv().debug = false
 
 if allowprints == nil then
-	getgenv().allowprints = true
+    getgenv().allowprints = true
 end
 
 local function checkprint(...)
