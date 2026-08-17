@@ -1,6 +1,3 @@
-if not getgenv().expiration then 
-    getgenv().expiration = 9999999999
-end
 
 -- setfflag("S2PhysicsSenderRate", "250")
 
