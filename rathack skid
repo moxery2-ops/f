@@ -3334,3 +3334,9 @@ gamevars.Bullet.CreateBullet = function(self,...)
 
 	return oldBullet(self,unpack(arguments))
 end
+
+
+getgenv().loaded = true
+local Time = (string.format("%.4f", os.clock() - Clock))
+library:SendNotification(("Loaded In "..tostring(Time)), 6)
+library:SendNotification(string.format("%.2f",((getgenv().expiration - os.time() ) / 3600)).." Hours remaining", 6)
